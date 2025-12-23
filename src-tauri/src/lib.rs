@@ -8,11 +8,13 @@ mod services;
 mod utils;
 
 use commands::*;
+use commands::window::WindowManagerState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(WindowManagerState::default())
         .invoke_handler(tauri::generate_handler![
             // 认证相关命令
             auth_login,
@@ -35,6 +37,13 @@ pub fn run() {
             create_new_window,
             close_window_by_id,
             focus_window_by_id,
+            get_all_windows,
+            get_window_info,
+            update_window_data,
+            get_resource_usage,
+            check_window_limits,
+            minimize_window,
+            maximize_window,
 
             // 数据库相关命令
             init_database,
