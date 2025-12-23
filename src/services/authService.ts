@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import type { LoginCredentials, AuthResult, User } from '@/types'
 
 export class AuthService {
@@ -12,55 +13,74 @@ export class AuthService {
 
   async login(credentials: LoginCredentials): Promise<AuthResult> {
     try {
-      // TODO: 实现实际的 API 调用
       console.log('AuthService.login called with:', credentials)
 
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // 调用 Tauri 命令进行认证
+      const result = await invoke<{
+        token: string
+        user: {
+          id: string
+          username: string
+          name: string
+          role: string
+          avatar?: string
+          department?: string
+          title?: string
+        }
+        expires_at: string
+      }>('auth_login', { credentials })
 
-      // 模拟返回数据
-      const mockUser: User = {
-        id: '1',
-        username: credentials.username || 'doctor',
-        name: '张医生',
-        role: 'doctor',
-        department: '内科',
-        title: '主治医师',
+      // 转换数据格式
+      const authResult: AuthResult = {
+        token: result.token,
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          name: result.user.name,
+          phone: '', // TODO: 从后端获取
+          department: result.user.department || '',
+          title: result.user.title || '',
+          licenseNumber: '', // TODO: 从后端获取
+          auditStatus: 'approved', // TODO: 从后端获取
+          createdAt: new Date(),
+          lastLogin: new Date(),
+        },
+        expiresAt: new Date(result.expires_at),
       }
 
-      return {
-        token: 'mock-jwt-token',
-        user: mockUser,
-        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8小时后过期
-      }
+      return authResult
     } catch (error) {
       console.error('Login failed:', error)
-      throw new Error('登录失败，请检查网络连接或联系管理员')
+      throw new Error(
+        typeof error === 'string'
+          ? error
+          : '登录失败，请检查网络连接或联系管理员'
+      )
     }
   }
 
   async logout(): Promise<void> {
     try {
-      // TODO: 调用登出 API
       console.log('AuthService.logout called')
 
-      // 清除本地存储的认证信息
-      // 这将由 store 处理
+      // 调用 Tauri 命令进行登出
+      await invoke('auth_logout')
     } catch (error) {
       console.error('Logout failed:', error)
       // 即使登出失败，也要清除本地状态
     }
   }
 
-  async refreshToken(_currentToken: string): Promise<string> {
+  async refreshToken(currentToken: string): Promise<string> {
     try {
-      // TODO: 实现 token 刷新逻辑
       console.log('AuthService.refreshToken called')
 
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // 调用 Tauri 命令刷新 token
+      const newToken = await invoke<string>('auth_refresh_token', {
+        currentToken,
+      })
 
-      return 'new-mock-jwt-token'
+      return newToken
     } catch (error) {
       console.error('Token refresh failed:', error)
       throw new Error('会话已过期，请重新登录')
@@ -69,32 +89,39 @@ export class AuthService {
 
   async validateSession(token: string): Promise<boolean> {
     try {
-      // TODO: 实现会话验证逻辑
       console.log('AuthService.validateSession called')
 
-      // 模拟验证
-      return token === 'mock-jwt-token' || token === 'new-mock-jwt-token'
+      // 调用 Tauri 命令验证会话
+      const isValid = await invoke<boolean>('auth_validate_session', {
+        token,
+      })
+
+      return isValid
     } catch (error) {
       console.error('Session validation failed:', error)
       return false
     }
   }
 
-  async getCurrentUser(_token: string): Promise<User> {
+  async getCurrentUser(token: string): Promise<User> {
     try {
-      // TODO: 实现获取当前用户信息的逻辑
       console.log('AuthService.getCurrentUser called')
 
-      // 模拟 API 调用
+      // TODO: 实现获取当前用户信息的 Tauri 命令
+      // 暂时返回模拟数据
       await new Promise(resolve => setTimeout(resolve, 300))
 
       return {
         id: '1',
         username: 'doctor',
         name: '张医生',
-        role: 'doctor',
+        phone: '13800138000',
         department: '内科',
         title: '主治医师',
+        licenseNumber: 'DOC123456',
+        auditStatus: 'approved',
+        createdAt: new Date(),
+        lastLogin: new Date(),
       }
     } catch (error) {
       console.error('Get current user failed:', error)

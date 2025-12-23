@@ -61,14 +61,9 @@ pub enum LoginType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResult {
-    pub success: bool,
-    pub token: Option<String>,
-    pub user: Option<User>,
-    pub message: Option<String>,
-    #[serde(rename = "requiresRealname")]
-    pub requires_realname: Option<bool>,
-    #[serde(rename = "auditStatus")]
-    pub audit_status: Option<AuditStatus>,
+    pub token: String,
+    pub user: serde_json::Value,
+    pub expires_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

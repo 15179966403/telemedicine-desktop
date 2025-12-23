@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useAuthStore } from '@/stores'
 import { AuthService } from '@/services'
 import { useErrorHandler } from '@/utils/errorHandler'
@@ -15,6 +15,7 @@ export function useAuth() {
     login: storeLogin,
     logout: storeLogout,
     refreshSession,
+    checkSession,
     clearError,
   } = useAuthStore()
 
@@ -32,26 +33,15 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     return handleAsyncError(async () => {
-      await authService.logout()
-      storeLogout()
+      await storeLogout()
     })
-  }, [storeLogout, authService, handleAsyncError])
+  }, [storeLogout, handleAsyncError])
 
-  const checkSession = useCallback(async () => {
-    if (!token) return false
-
-    return handleAsyncError(
-      async () => {
-        const isValid = await authService.validateSession(token)
-        if (!isValid) {
-          storeLogout()
-          return false
-        }
-        return true
-      },
-      false
-    )
-  }, [token, authService, storeLogout, handleAsyncError])
+  const validateSession = useCallback(async () => {
+    return handleAsyncError(async () => {
+      return await checkSession()
+    }, false)
+  }, [checkSession, handleAsyncError])
 
   const refreshToken = useCallback(async () => {
     if (!token) return
@@ -61,7 +51,7 @@ export function useAuth() {
     })
   }, [token, refreshSession, handleAsyncError])
 
-  // 检查会话是否即将过期
+  // 检查会话是否即将过期（5分钟内）
   const isSessionExpiring = useCallback(() => {
     if (!sessionExpires) return false
 
@@ -69,8 +59,7 @@ export function useAuth() {
     const expiresAt = new Date(sessionExpires)
     const timeUntilExpiry = expiresAt.getTime() - now.getTime()
 
-    // 如果5分钟内过期，认为即将过期
-    return timeUntilExpiry < 5 * 60 * 1000
+    return timeUntilExpiry < 5 * 60 * 1000 && timeUntilExpiry > 0
   }, [sessionExpires])
 
   // 检查会话是否已过期
@@ -82,6 +71,61 @@ export function useAuth() {
 
     return now > expiresAt
   }, [sessionExpires])
+
+  // 自动会话管理
+  useEffect(() => {
+    if (!isAuthenticated || !token) return
+
+    // 检查会话是否已过期
+    if (isSessionExpired()) {
+      console.log('Session expired, logging out')
+      logout()
+      return
+    }
+
+    // 如果会话即将过期，自动刷新
+    if (isSessionExpiring()) {
+      console.log('Session expiring soon, refreshing token')
+      refreshToken().catch(() => {
+        console.log('Failed to refresh token, logging out')
+        logout()
+      })
+    }
+
+    // 设置定时器检查会话状态
+    const interval = setInterval(() => {
+      if (isSessionExpired()) {
+        logout()
+      } else if (isSessionExpiring()) {
+        refreshToken().catch(() => logout())
+      }
+    }, 60 * 1000) // 每分钟检查一次
+
+    return () => clearInterval(interval)
+  }, [
+    isAuthenticated,
+    token,
+    isSessionExpired,
+    isSessionExpiring,
+    refreshToken,
+    logout,
+  ])
+
+  // 页面可见性变化时验证会话
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isAuthenticated && token) {
+        validateSession().catch(() => {
+          console.log('Session validation failed, logging out')
+          logout()
+        })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isAuthenticated, token, validateSession, logout])
 
   return {
     // 状态
@@ -95,7 +139,7 @@ export function useAuth() {
     // 方法
     login,
     logout,
-    checkSession,
+    validateSession,
     refreshToken,
     clearError,
 

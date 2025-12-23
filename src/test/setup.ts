@@ -2,6 +2,34 @@ import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
 // Mock Tauri API
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+}))
+
+// Mock antd message
+vi.mock('antd', async () => {
+  const actual = await vi.importActual('antd')
+  return {
+    ...actual,
+    message: {
+      success: vi.fn(),
+      error: vi.fn(),
+      warning: vi.fn(),
+      info: vi.fn(),
+    },
+  }
+})
+
+// Mock console methods to reduce noise in tests
+global.console = {
+  ...console,
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}
+import { vi } from 'vitest'
+
+// Mock Tauri API
 const mockTauri = {
   invoke: vi.fn(),
   listen: vi.fn(),
