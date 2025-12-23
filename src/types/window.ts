@@ -20,7 +20,7 @@ export interface WindowInfo {
   data: WindowData
   position: WindowPosition
   size: WindowSize
-  state: WindowState
+  state: WindowDisplayState
   createdAt: Date
   lastFocused: Date
 }
@@ -45,7 +45,11 @@ export interface WindowSize {
 }
 
 // 窗口状态
-export type WindowState = 'normal' | 'minimized' | 'maximized' | 'fullscreen'
+export type WindowDisplayState =
+  | 'normal'
+  | 'minimized'
+  | 'maximized'
+  | 'fullscreen'
 
 // 窗口配置
 export interface WindowConfig {

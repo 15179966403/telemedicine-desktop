@@ -40,11 +40,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const authService = AuthService.getInstance()
           const result = await authService.login(credentials)
 
+          // Calculate expiration time (8 hours from now)
+          const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000)
+
           set({
             isAuthenticated: true,
             user: result.user,
             token: result.token,
-            sessionExpires: result.expiresAt,
+            sessionExpires: expiresAt,
             loading: false,
           })
         } catch (error) {
