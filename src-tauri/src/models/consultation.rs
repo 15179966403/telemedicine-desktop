@@ -1,50 +1,51 @@
 // 问诊模型
 
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+// Note: Main Consultation struct is now in message.rs to avoid circular dependencies
+// This file contains additional consultation-related types
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Consultation {
+pub struct ConsultationOrder {
     pub id: String,
+    #[serde(rename = "patientId")]
     pub patient_id: String,
+    #[serde(rename = "doctorId")]
     pub doctor_id: String,
-    pub status: ConsultationStatus,
-    pub consultation_type: ConsultationType,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub status: OrderStatus,
+    #[serde(rename = "consultationType")]
+    pub consultation_type: String,
+    pub title: String,
+    pub description: String,
+    pub symptoms: Vec<String>,
+    pub attachments: Vec<String>, // file URLs
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConsultationStatus {
+#[serde(rename_all = "lowercase")]
+pub enum OrderStatus {
     Pending,
-    Active,
+    Accepted,
+    InProgress,
     Completed,
     Cancelled,
+    Expired,
 }
 
-impl std::fmt::Display for ConsultationStatus {
+impl std::fmt::Display for OrderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConsultationStatus::Pending => write!(f, "pending"),
-            ConsultationStatus::Active => write!(f, "active"),
-            ConsultationStatus::Completed => write!(f, "completed"),
-            ConsultationStatus::Cancelled => write!(f, "cancelled"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConsultationType {
-    Text,
-    Video,
-    Voice,
-}
-
-impl std::fmt::Display for ConsultationType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConsultationType::Text => write!(f, "text"),
-            ConsultationType::Video => write!(f, "video"),
-            ConsultationType::Voice => write!(f, "voice"),
+            OrderStatus::Pending => write!(f, "pending"),
+            OrderStatus::Accepted => write!(f, "accepted"),
+            OrderStatus::InProgress => write!(f, "in_progress"),
+            OrderStatus::Completed => write!(f, "completed"),
+            OrderStatus::Cancelled => write!(f, "cancelled"),
+            OrderStatus::Expired => write!(f, "expired"),
         }
     }
 }
