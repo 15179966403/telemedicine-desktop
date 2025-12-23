@@ -13,10 +13,6 @@ use commands::*;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_window::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_websocket::init())
         .invoke_handler(tauri::generate_handler![
             // 认证相关命令
             auth_login,

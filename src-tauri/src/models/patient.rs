@@ -7,17 +7,16 @@ use chrono::{DateTime, Utc};
 pub struct Patient {
     pub id: String,
     pub name: String,
-    pub age: u32,
-    pub gender: Gender,
-    pub phone: String,
+    pub age: Option<u32>,
+    pub gender: Option<String>,
+    pub phone: Option<String>,
     #[serde(rename = "idCard")]
     pub id_card: Option<String>,
-    pub avatar: Option<String>,
     pub tags: Vec<String>,
-    #[serde(rename = "lastVisit")]
-    pub last_visit: Option<DateTime<Utc>>,
-    #[serde(rename = "medicalHistory")]
-    pub medical_history: Vec<MedicalRecord>,
+    #[serde(rename = "avatarUrl")]
+    pub avatar_url: Option<String>,
+    #[serde(rename = "lastSync")]
+    pub last_sync: Option<DateTime<Utc>>,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "updatedAt")]
@@ -38,49 +37,6 @@ impl std::fmt::Display for Gender {
             Gender::Female => write!(f, "female"),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MedicalRecord {
-    pub id: String,
-    #[serde(rename = "patientId")]
-    pub patient_id: String,
-    #[serde(rename = "consultationId")]
-    pub consultation_id: String,
-    pub diagnosis: String,
-    pub symptoms: Vec<String>,
-    pub prescription: Vec<Prescription>,
-    pub examinations: Vec<Examination>,
-    #[serde(rename = "doctorId")]
-    pub doctor_id: String,
-    #[serde(rename = "doctorName")]
-    pub doctor_name: String,
-    #[serde(rename = "createdAt")]
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Prescription {
-    pub id: String,
-    #[serde(rename = "medicationName")]
-    pub medication_name: String,
-    pub dosage: String,
-    pub frequency: String,
-    pub duration: String,
-    pub instructions: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Examination {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub exam_type: String,
-    pub name: String,
-    pub result: String,
-    #[serde(rename = "fileUrl")]
-    pub file_url: Option<String>,
-    #[serde(rename = "reportDate")]
-    pub report_date: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

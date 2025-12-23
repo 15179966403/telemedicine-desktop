@@ -7,16 +7,15 @@ use chrono::{DateTime, Utc};
 pub struct User {
     pub id: String,
     pub username: String,
-    pub name: String,
-    pub phone: String,
-    pub email: Option<String>,
-    pub avatar: Option<String>,
-    pub department: String,
-    pub title: String,
-    pub license_number: String,
-    pub audit_status: AuditStatus,
-    pub created_at: DateTime<Utc>,
+    pub encrypted_token: Option<String>,
+    #[serde(rename = "lastLogin")]
     pub last_login: Option<DateTime<Utc>>,
+    #[serde(rename = "sessionExpires")]
+    pub session_expires: Option<DateTime<Utc>>,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

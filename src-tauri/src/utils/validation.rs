@@ -113,13 +113,17 @@ impl ValidationService {
         }
 
         // 验证年龄
-        if !Self::validate_age(patient.age) {
-            result.add_error("age", "年龄必须在0-150之间", "OUT_OF_RANGE");
+        if let Some(age) = patient.age {
+            if !Self::validate_age(age) {
+                result.add_error("age", "年龄必须在0-150之间", "OUT_OF_RANGE");
+            }
         }
 
         // 验证手机号
-        if !Self::validate_phone(&patient.phone) {
-            result.add_error("phone", "手机号格式不正确", "INVALID_FORMAT");
+        if let Some(phone) = &patient.phone {
+            if !Self::validate_phone(phone) {
+                result.add_error("phone", "手机号格式不正确", "INVALID_FORMAT");
+            }
         }
 
         // 验证身份证号（如果提供）
@@ -149,18 +153,21 @@ impl ValidationService {
         }
 
         // 验证消息内容
-        match request.message_type {
-            MessageType::Text | MessageType::Template => {
+        match request.message_type.as_str() {
+            "text" | "template" => {
                 if request.content.trim().is_empty() {
                     result.add_error("content", "消息内容不能为空", "REQUIRED");
                 } else if request.content.len() > 5000 {
                     result.add_error("content", "消息内容不能超过5000个字符", "MAX_LENGTH");
                 }
             }
-            MessageType::Image | MessageType::Voice | MessageType::File => {
+            "image" | "voice" | "file" => {
                 if request.file_id.is_none() {
                     result.add_error("fileId", "文件ID不能为空", "REQUIRED");
                 }
+            }
+            _ => {
+                result.add_error("messageType", "不支持的消息类型", "INVALID_TYPE");
             }
         }
 
