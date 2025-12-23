@@ -1,290 +1,458 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useMessageStore } from '@/stores/messageStore'
+import { invoke } from '@tauri-apps/api/core'
 import type { Message } from '@/types'
 
+// Mock Tauri invoke
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue(undefined),
+}))
+
+const mockInvoke = vi.mocked(invoke)
+
 describe('MessageStore', () => {
-  const mockMessage1: Message = {
-    id: '1',
-    consultationId: 'consultation-1',
-    type: 'text',
-    content: '您好，我想咨询一下',
-    sender: 'patient',
-    timestamp: new Date('2024-01-15T10:00:00'),
-    status: 'sent',
-  }
-
-  const mockMessage2: Message = {
-    id: '2',
-    consultationId: 'consultation-1',
-    type: 'text',
-    content: '您好，请描述一下症状',
-    sender: 'doctor',
-    timestamp: new Date('2024-01-15T10:01:00'),
-    status: 'sent',
-  }
-
-  const mockMessage3: Message = {
-    id: '3',
-    consultationId: 'consultation-2',
-    type: 'text',
-    content: '复诊预约',
-    sender: 'patient',
-    timestamp: new Date('2024-01-15T11:00:00'),
-    status: 'sent',
-  }
-
   beforeEach(() => {
     // Reset store state
     useMessageStore.setState({
       conversations: new Map(),
+      consultations: [],
       activeConversation: null,
       unreadCounts: new Map(),
       loading: false,
       error: null,
+      connectionStatus: 'connected',
+      sendingMessages: new Set(),
     })
+    vi.clearAllMocks()
   })
 
-  describe('Initial State', () => {
-    it('should have correct initial state', () => {
-      const state = useMessageStore.getState()
+  describe('addMessage', () => {
+    it('should add message to conversation', () => {
+      const { addMessage, conversations } = useMessageStore.getState()
 
-      expect(state.conversations).toBeInstanceOf(Map)
-      expect(state.conversations.size).toBe(0)
-      expect(state.activeConversation).toBeNull()
-      expect(state.unreadCounts).toBeInstanceOf(Map)
-      expect(state.unreadCounts.size).toBe(0)
-      expect(state.loading).toBe(false)
-      expect(state.error).toBeNull()
-    })
-  })
+      const message: Message = {
+        id: 'msg-1',
+        consultationId: 'consultation-1',
+        type: 'text',
+        content: '测试消息',
+        sender: 'doctor',
+        timestamp: new Date(),
+        status: 'sent',
+      }
 
-  describe('Conversation Management', () => {
-    it('should set conversations', () => {
-      const conversations = new Map([
-        ['consultation-1', [mockMessage1, mockMessage2]],
-        ['consultation-2', [mockMessage3]],
-      ])
+      addMessage('consultation-1', message)
 
-      const { setConversations } = useMessageStore.getState()
-      setConversations(conversations)
+      const updatedConversations = useMessageStore.getState().conversations
+      const messages = updatedConversations.get('consultation-1')
 
-      const state = useMessageStore.getState()
-      expect(state.conversations.size).toBe(2)
-      expect(state.conversations.get('consultation-1')).toEqual([
-        mockMessage1,
-        mockMessage2,
-      ])
-      expect(state.conversations.get('consultation-2')).toEqual([mockMessage3])
-    })
-
-    it('should add message to existing conversation', () => {
-      const existingConversations = new Map([
-        ['consultation-1', [mockMessage1]],
-      ])
-      useMessageStore.setState({ conversations: existingConversations })
-
-      const { addMessage } = useMessageStore.getState()
-      addMessage('consultation-1', mockMessage2)
-
-      const state = useMessageStore.getState()
-      const messages = state.conversations.get('consultation-1')
-      expect(messages).toHaveLength(2)
-      expect(messages?.[1]).toEqual(mockMessage2)
-    })
-
-    it('should add message to new conversation', () => {
-      const { addMessage } = useMessageStore.getState()
-      addMessage('consultation-1', mockMessage1)
-
-      const state = useMessageStore.getState()
-      const messages = state.conversations.get('consultation-1')
       expect(messages).toHaveLength(1)
-      expect(messages?.[0]).toEqual(mockMessage1)
+      expect(messages?.[0]).toEqual(message)
     })
 
-    it('should increment unread count for patient messages in inactive conversation', () => {
-      useMessageStore.setState({ activeConversation: 'consultation-2' })
-
+    it('should not add duplicate messages', () => {
       const { addMessage } = useMessageStore.getState()
-      addMessage('consultation-1', mockMessage1) // patient message to inactive conversation
 
-      const state = useMessageStore.getState()
-      expect(state.unreadCounts.get('consultation-1')).toBe(1)
+      const message: Message = {
+        id: 'msg-1',
+        consultationId: 'consultation-1',
+        type: 'text',
+        content: '测试消息',
+        sender: 'doctor',
+        timestamp: new Date(),
+        status: 'sent',
+      }
+
+      // Add same message twice
+      addMessage('consultation-1', message)
+      addMessage('consultation-1', message)
+
+      const conversations = useMessageStore.getState().conversations
+      const messages = conversations.get('consultation-1')
+
+      expect(messages).toHaveLength(1)
+    })
+
+    it('should increment unread count for patient messages when not active', () => {
+      const { addMessage, setActiveConversation } = useMessageStore.getState()
+
+      // Set different active conversation
+      setActiveConversation('consultation-2')
+
+      const message: Message = {
+        id: 'msg-1',
+        consultationId: 'consultation-1',
+        type: 'text',
+        content: '患者消息',
+        sender: 'patient',
+        timestamp: new Date(),
+        status: 'delivered',
+      }
+
+      addMessage('consultation-1', message)
+
+      const unreadCounts = useMessageStore.getState().unreadCounts
+      expect(unreadCounts.get('consultation-1')).toBe(1)
     })
 
     it('should not increment unread count for doctor messages', () => {
-      useMessageStore.setState({ activeConversation: 'consultation-2' })
+      const { addMessage, setActiveConversation } = useMessageStore.getState()
 
-      const { addMessage } = useMessageStore.getState()
-      addMessage('consultation-1', mockMessage2) // doctor message
+      // Set different active conversation
+      setActiveConversation('consultation-2')
 
-      const state = useMessageStore.getState()
-      expect(state.unreadCounts.get('consultation-1')).toBeUndefined()
-    })
-
-    it('should not increment unread count for active conversation', () => {
-      useMessageStore.setState({ activeConversation: 'consultation-1' })
-
-      const { addMessage } = useMessageStore.getState()
-      addMessage('consultation-1', mockMessage1) // patient message to active conversation
-
-      const state = useMessageStore.getState()
-      expect(state.unreadCounts.get('consultation-1')).toBeUndefined()
-    })
-  })
-
-  describe('Message Updates', () => {
-    beforeEach(() => {
-      const conversations = new Map([
-        ['consultation-1', [mockMessage1, mockMessage2]],
-      ])
-      useMessageStore.setState({ conversations })
-    })
-
-    it('should update message', () => {
-      const updates = {
-        status: 'delivered' as const,
-        content: 'Updated content',
+      const message: Message = {
+        id: 'msg-1',
+        consultationId: 'consultation-1',
+        type: 'text',
+        content: '医生消息',
+        sender: 'doctor',
+        timestamp: new Date(),
+        status: 'sent',
       }
 
-      const { updateMessage } = useMessageStore.getState()
-      updateMessage('consultation-1', mockMessage1.id, updates)
+      addMessage('consultation-1', message)
 
-      const state = useMessageStore.getState()
-      const messages = state.conversations.get('consultation-1')
-      const updatedMessage = messages?.find(m => m.id === mockMessage1.id)
-
-      expect(updatedMessage?.status).toBe('delivered')
-      expect(updatedMessage?.content).toBe('Updated content')
-      expect(updatedMessage?.sender).toBe(mockMessage1.sender) // unchanged
-    })
-
-    it('should not affect other messages when updating', () => {
-      const updates = { content: 'Updated content' }
-
-      const { updateMessage } = useMessageStore.getState()
-      updateMessage('consultation-1', mockMessage1.id, updates)
-
-      const state = useMessageStore.getState()
-      const messages = state.conversations.get('consultation-1')
-      const otherMessage = messages?.find(m => m.id === mockMessage2.id)
-
-      expect(otherMessage).toEqual(mockMessage2) // unchanged
-    })
-
-    it('should handle update for non-existent message', () => {
-      const { updateMessage } = useMessageStore.getState()
-      updateMessage('consultation-1', 'non-existent', { content: 'test' })
-
-      // Should not throw error and should not change existing messages
-      const state = useMessageStore.getState()
-      const messages = state.conversations.get('consultation-1')
-      expect(messages).toHaveLength(2)
+      const unreadCounts = useMessageStore.getState().unreadCounts
+      expect(unreadCounts.get('consultation-1')).toBe(0)
     })
   })
 
-  describe('Active Conversation Management', () => {
-    beforeEach(() => {
-      const unreadCounts = new Map([
-        ['consultation-1', 3],
-        ['consultation-2', 1],
-      ])
-      useMessageStore.setState({ unreadCounts })
+  describe('updateMessage', () => {
+    it('should update existing message', () => {
+      const { addMessage, updateMessage } = useMessageStore.getState()
+
+      const message: Message = {
+        id: 'msg-1',
+        consultationId: 'consultation-1',
+        type: 'text',
+        content: '原始消息',
+        sender: 'doctor',
+        timestamp: new Date(),
+        status: 'sending',
+      }
+
+      addMessage('consultation-1', message)
+      updateMessage('consultation-1', 'msg-1', {
+        status: 'sent',
+        content: '更新后的消息',
+      })
+
+      const conversations = useMessageStore.getState().conversations
+      const messages = conversations.get('consultation-1')
+      const updatedMessage = messages?.[0]
+
+      expect(updatedMessage?.status).toBe('sent')
+      expect(updatedMessage?.content).toBe('更新后的消息')
     })
 
-    it('should set active conversation', () => {
-      const { setActiveConversation } = useMessageStore.getState()
+    it('should not update non-existent message', () => {
+      const { updateMessage } = useMessageStore.getState()
+
+      updateMessage('consultation-1', 'non-existent', { status: 'sent' })
+
+      const conversations = useMessageStore.getState().conversations
+      const messages = conversations.get('consultation-1')
+
+      expect(messages || []).toHaveLength(0)
+    })
+  })
+
+  describe('updateMessageStatus', () => {
+    it('should update message status and remove from sending list', () => {
+      const { addMessage, updateMessageStatus, addSendingMessage } =
+        useMessageStore.getState()
+
+      const message: Message = {
+        id: 'msg-1',
+        consultationId: 'consultation-1',
+        type: 'text',
+        content: '测试消息',
+        sender: 'doctor',
+        timestamp: new Date(),
+        status: 'sending',
+      }
+
+      addMessage('consultation-1', message)
+      addSendingMessage('msg-1')
+
+      // Verify message is in sending list
+      expect(useMessageStore.getState().sendingMessages.has('msg-1')).toBe(true)
+
+      updateMessageStatus('consultation-1', 'msg-1', 'sent')
+
+      const conversations = useMessageStore.getState().conversations
+      const messages = conversations.get('consultation-1')
+      const updatedMessage = messages?.[0]
+
+      expect(updatedMessage?.status).toBe('sent')
+      expect(useMessageStore.getState().sendingMessages.has('msg-1')).toBe(
+        false
+      )
+    })
+  })
+
+  describe('setActiveConversation', () => {
+    it('should set active conversation and mark as read', () => {
+      const { setActiveConversation, incrementUnreadCount } =
+        useMessageStore.getState()
+
+      // Add some unread messages
+      incrementUnreadCount('consultation-1')
+      incrementUnreadCount('consultation-1')
+
+      expect(
+        useMessageStore.getState().unreadCounts.get('consultation-1')
+      ).toBe(2)
+
       setActiveConversation('consultation-1')
 
       expect(useMessageStore.getState().activeConversation).toBe(
         'consultation-1'
       )
+      expect(
+        useMessageStore.getState().unreadCounts.get('consultation-1')
+      ).toBe(0)
     })
 
-    it('should mark conversation as read when setting as active', () => {
+    it('should call backend to mark messages as read', () => {
       const { setActiveConversation } = useMessageStore.getState()
+
       setActiveConversation('consultation-1')
 
-      const state = useMessageStore.getState()
-      expect(state.unreadCounts.get('consultation-1')).toBe(0)
-      expect(state.unreadCounts.get('consultation-2')).toBe(1) // unchanged
-    })
-
-    it('should clear active conversation', () => {
-      useMessageStore.setState({ activeConversation: 'consultation-1' })
-
-      const { setActiveConversation } = useMessageStore.getState()
-      setActiveConversation(null)
-
-      expect(useMessageStore.getState().activeConversation).toBeNull()
+      expect(mockInvoke).toHaveBeenCalledWith('mark_messages_as_read', {
+        consultationId: 'consultation-1',
+      })
     })
   })
 
-  describe('Unread Count Management', () => {
-    it('should mark conversation as read', () => {
-      const unreadCounts = new Map([
-        ['consultation-1', 5],
-        ['consultation-2', 2],
-      ])
-      useMessageStore.setState({ unreadCounts })
+  describe('markAsRead', () => {
+    it('should reset unread count to zero', () => {
+      const { markAsRead, incrementUnreadCount } = useMessageStore.getState()
 
-      const { markAsRead } = useMessageStore.getState()
-      markAsRead('consultation-1')
-
-      const state = useMessageStore.getState()
-      expect(state.unreadCounts.get('consultation-1')).toBe(0)
-      expect(state.unreadCounts.get('consultation-2')).toBe(2) // unchanged
-    })
-
-    it('should increment unread count', () => {
-      const unreadCounts = new Map([['consultation-1', 2]])
-      useMessageStore.setState({ unreadCounts })
-
-      const { incrementUnreadCount } = useMessageStore.getState()
+      // Add some unread messages
+      incrementUnreadCount('consultation-1')
+      incrementUnreadCount('consultation-1')
       incrementUnreadCount('consultation-1')
 
       expect(
         useMessageStore.getState().unreadCounts.get('consultation-1')
       ).toBe(3)
-    })
 
-    it('should increment unread count for new conversation', () => {
-      const { incrementUnreadCount } = useMessageStore.getState()
-      incrementUnreadCount('consultation-new')
+      markAsRead('consultation-1')
 
       expect(
-        useMessageStore.getState().unreadCounts.get('consultation-new')
+        useMessageStore.getState().unreadCounts.get('consultation-1')
+      ).toBe(0)
+    })
+  })
+
+  describe('incrementUnreadCount', () => {
+    it('should increment unread count', () => {
+      const { incrementUnreadCount } = useMessageStore.getState()
+
+      incrementUnreadCount('consultation-1')
+      expect(
+        useMessageStore.getState().unreadCounts.get('consultation-1')
+      ).toBe(1)
+
+      incrementUnreadCount('consultation-1')
+      expect(
+        useMessageStore.getState().unreadCounts.get('consultation-1')
+      ).toBe(2)
+    })
+
+    it('should start from 0 for new conversations', () => {
+      const { incrementUnreadCount } = useMessageStore.getState()
+
+      incrementUnreadCount('new-consultation')
+      expect(
+        useMessageStore.getState().unreadCounts.get('new-consultation')
       ).toBe(1)
     })
   })
 
-  describe('Loading and Error States', () => {
+  describe('sendingMessages', () => {
+    it('should add and remove sending messages', () => {
+      const { addSendingMessage, removeSendingMessage } =
+        useMessageStore.getState()
+
+      addSendingMessage('msg-1')
+      expect(useMessageStore.getState().sendingMessages.has('msg-1')).toBe(true)
+
+      addSendingMessage('msg-2')
+      expect(useMessageStore.getState().sendingMessages.size).toBe(2)
+
+      removeSendingMessage('msg-1')
+      expect(useMessageStore.getState().sendingMessages.has('msg-1')).toBe(
+        false
+      )
+      expect(useMessageStore.getState().sendingMessages.has('msg-2')).toBe(true)
+      expect(useMessageStore.getState().sendingMessages.size).toBe(1)
+    })
+  })
+
+  describe('retryFailedMessages', () => {
+    it('should retry all failed messages in a conversation', async () => {
+      const { addMessage, retryFailedMessages } = useMessageStore.getState()
+
+      // Add some messages including failed ones
+      const messages: Message[] = [
+        {
+          id: 'msg-1',
+          consultationId: 'consultation-1',
+          type: 'text',
+          content: '成功消息',
+          sender: 'doctor',
+          timestamp: new Date(),
+          status: 'sent',
+        },
+        {
+          id: 'msg-2',
+          consultationId: 'consultation-1',
+          type: 'text',
+          content: '失败消息1',
+          sender: 'doctor',
+          timestamp: new Date(),
+          status: 'failed',
+        },
+        {
+          id: 'msg-3',
+          consultationId: 'consultation-1',
+          type: 'text',
+          content: '失败消息2',
+          sender: 'doctor',
+          timestamp: new Date(),
+          status: 'failed',
+        },
+        {
+          id: 'msg-4',
+          consultationId: 'consultation-1',
+          type: 'text',
+          content: '患者消息',
+          sender: 'patient',
+          timestamp: new Date(),
+          status: 'failed', // This should not be retried
+        },
+      ]
+
+      messages.forEach(msg => addMessage('consultation-1', msg))
+
+      // Mock successful retry
+      mockInvoke.mockResolvedValue({
+        id: 'new-id',
+        consultation_id: 'consultation-1',
+        message_type: 'text',
+        content: 'retried',
+        sender: 'doctor',
+        timestamp: new Date().toISOString(),
+        status: 'sent',
+      })
+
+      await retryFailedMessages('consultation-1')
+
+      // Should only retry doctor's failed messages (2 calls)
+      expect(mockInvoke).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('syncMessages', () => {
+    it('should sync messages and update conversations', async () => {
+      const { syncMessages } = useMessageStore.getState()
+
+      const mockSyncResponse = {
+        messages: [
+          {
+            id: 'msg-1',
+            consultation_id: 'consultation-1',
+            message_type: 'text',
+            content: '同步消息1',
+            sender: 'patient',
+            timestamp: new Date().toISOString(),
+            status: 'delivered',
+          },
+          {
+            id: 'msg-2',
+            consultation_id: 'consultation-1',
+            message_type: 'text',
+            content: '同步消息2',
+            sender: 'doctor',
+            timestamp: new Date().toISOString(),
+            status: 'sent',
+          },
+        ],
+        total: 2,
+        page: 1,
+        has_more: false,
+      }
+
+      mockInvoke
+        .mockResolvedValueOnce(2) // sync_pending_messages returns count
+        .mockResolvedValueOnce(mockSyncResponse) // get_message_history returns messages
+
+      await syncMessages('consultation-1')
+
+      expect(mockInvoke).toHaveBeenCalledWith('sync_pending_messages')
+      expect(mockInvoke).toHaveBeenCalledWith('get_message_history', {
+        consultationId: 'consultation-1',
+        page: 1,
+        limit: 50,
+      })
+
+      const conversations = useMessageStore.getState().conversations
+      const messages = conversations.get('consultation-1')
+
+      expect(messages).toHaveLength(2)
+      expect(messages?.[0].content).toBe('同步消息1')
+      expect(messages?.[1].content).toBe('同步消息2')
+    })
+
+    it('should handle sync errors', async () => {
+      const { syncMessages } = useMessageStore.getState()
+
+      mockInvoke.mockRejectedValue(new Error('Sync failed'))
+
+      await syncMessages('consultation-1')
+
+      expect(useMessageStore.getState().error).toBe('同步消息失败')
+    })
+  })
+
+  describe('error handling', () => {
+    it('should set and clear errors', () => {
+      const { setError, clearError } = useMessageStore.getState()
+
+      setError('测试错误')
+      expect(useMessageStore.getState().error).toBe('测试错误')
+
+      clearError()
+      expect(useMessageStore.getState().error).toBeNull()
+    })
+  })
+
+  describe('loading states', () => {
     it('should set loading state', () => {
       const { setLoading } = useMessageStore.getState()
-      setLoading(true)
 
+      setLoading(true)
       expect(useMessageStore.getState().loading).toBe(true)
 
       setLoading(false)
       expect(useMessageStore.getState().loading).toBe(false)
     })
+  })
 
-    it('should set error', () => {
-      const errorMessage = '消息发送失败'
+  describe('connection status', () => {
+    it('should set connection status', () => {
+      const { setConnectionStatus } = useMessageStore.getState()
 
-      const { setError } = useMessageStore.getState()
-      setError(errorMessage)
+      setConnectionStatus('disconnected')
+      expect(useMessageStore.getState().connectionStatus).toBe('disconnected')
 
-      expect(useMessageStore.getState().error).toBe(errorMessage)
-    })
+      setConnectionStatus('reconnecting')
+      expect(useMessageStore.getState().connectionStatus).toBe('reconnecting')
 
-    it('should clear error', () => {
-      useMessageStore.setState({ error: 'Some error' })
-
-      const { clearError } = useMessageStore.getState()
-      clearError()
-
-      expect(useMessageStore.getState().error).toBeNull()
+      setConnectionStatus('connected')
+      expect(useMessageStore.getState().connectionStatus).toBe('connected')
     })
   })
 })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMessageStore } from '@/stores'
 import { MessageService } from '@/services'
 import { useErrorHandler } from '@/utils/errorHandler'
@@ -11,17 +11,29 @@ export function useMessages(consultationId?: string) {
     unreadCounts,
     loading,
     error,
+    connectionStatus,
+    sendingMessages,
     addMessage,
     updateMessage,
+    updateMessageStatus,
     setActiveConversation,
     markAsRead,
     setLoading,
     clearError,
+    addSendingMessage,
+    removeSendingMessage,
+    retryFailedMessages,
+    syncMessages,
   } = useMessageStore()
 
   const { handleAsyncError } = useErrorHandler()
   const messageService = MessageService.getInstance()
   const unsubscribeRef = useRef<(() => void) | null>(null)
+
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMoreMessages, setHasMoreMessages] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   // 获取当前对话的消息
   const currentMessages = consultationId
@@ -39,14 +51,19 @@ export function useMessages(consultationId?: string) {
       if (!consultationId) return
 
       return handleAsyncError(async () => {
+        // 生成临时消息ID
+        const tempId = `temp-${Date.now()}-${Math.random()}`
+
         // 先添加到本地状态（显示发送中状态）
         const tempMessage: Message = {
           ...message,
-          id: `temp-${Date.now()}`,
+          id: tempId,
           timestamp: new Date(),
           status: 'sending',
         }
+
         addMessage(consultationId, tempMessage)
+        addSendingMessage(tempId)
 
         try {
           // 发送到服务器
@@ -55,16 +72,17 @@ export function useMessages(consultationId?: string) {
             message
           )
 
-          // 更新消息状态
-          updateMessage(consultationId, tempMessage.id, {
+          // 更新消息ID和状态
+          updateMessage(consultationId, tempId, {
             id: sentMessage.id,
             status: sentMessage.status,
+            timestamp: sentMessage.timestamp,
           })
 
           return sentMessage
         } catch (error) {
           // 发送失败，更新状态
-          updateMessage(consultationId, tempMessage.id, { status: 'failed' })
+          updateMessageStatus(consultationId, tempId, 'failed')
           throw error
         }
       })
@@ -73,6 +91,8 @@ export function useMessages(consultationId?: string) {
       consultationId,
       addMessage,
       updateMessage,
+      updateMessageStatus,
+      addSendingMessage,
       messageService,
       handleAsyncError,
     ]
@@ -85,53 +105,84 @@ export function useMessages(consultationId?: string) {
 
       return handleAsyncError(async () => {
         // 更新为发送中状态
-        updateMessage(consultationId, message.id, { status: 'sending' })
+        updateMessageStatus(consultationId, message.id, 'sending')
+        addSendingMessage(message.id)
 
         try {
           const retriedMessage =
             await messageService.retryFailedMessage(message)
-          updateMessage(consultationId, message.id, {
-            id: retriedMessage.id,
-            status: retriedMessage.status,
-          })
+          updateMessageStatus(consultationId, message.id, retriedMessage.status)
           return retriedMessage
         } catch (error) {
-          updateMessage(consultationId, message.id, { status: 'failed' })
+          updateMessageStatus(consultationId, message.id, 'failed')
           throw error
         }
       })
     },
-    [consultationId, updateMessage, messageService, handleAsyncError]
+    [
+      consultationId,
+      updateMessageStatus,
+      addSendingMessage,
+      messageService,
+      handleAsyncError,
+    ]
   )
 
-  // 加载历史消息
+  // 加载历史消息（支持分页）
   const loadMessageHistory = useCallback(
-    async (page: number = 1) => {
+    async (page: number = 1, append: boolean = false) => {
       if (!consultationId) return
 
-      setLoading(true)
+      if (!append) {
+        setLoading(true)
+      } else {
+        setLoadingMore(true)
+      }
+
       return handleAsyncError(
         async () => {
           const result = await messageService.getMessageHistory(
             consultationId,
-            page
+            page,
+            20 // 每页20条消息
           )
 
-          // 将历史消息添加到对话中（注意不要重复添加）
-          const existingMessageIds = new Set(currentMessages.map(m => m.id))
-          const newMessages = result.messages.filter(
-            m => !existingMessageIds.has(m.id)
-          )
+          if (append) {
+            // 追加到现有消息
+            const existingMessageIds = new Set(currentMessages.map(m => m.id))
+            const newMessages = result.messages.filter(
+              m => !existingMessageIds.has(m.id)
+            )
 
-          newMessages.forEach(message => {
-            addMessage(consultationId, message)
-          })
+            // 将新消息插入到开头（历史消息应该在前面）
+            const { conversations } = useMessageStore.getState()
+            const existingMessages = conversations.get(consultationId) || []
+            const updatedMessages = [...newMessages, ...existingMessages]
+
+            const newConversations = new Map(conversations)
+            newConversations.set(consultationId, updatedMessages)
+            useMessageStore.setState({ conversations: newConversations })
+          } else {
+            // 替换所有消息
+            result.messages.forEach(message => {
+              addMessage(consultationId, message)
+            })
+          }
+
+          // 更新分页状态
+          setHasMoreMessages(result.hasMore)
+          if (append) {
+            setCurrentPage(page)
+          } else {
+            setCurrentPage(1)
+          }
 
           return result
         },
         { messages: [], total: 0, page: 1, hasMore: false }
       ).finally(() => {
         setLoading(false)
+        setLoadingMore(false)
       })
     },
     [
@@ -143,6 +194,14 @@ export function useMessages(consultationId?: string) {
       handleAsyncError,
     ]
   )
+
+  // 加载更多历史消息
+  const loadMoreMessages = useCallback(async () => {
+    if (!hasMoreMessages || loadingMore) return
+
+    const nextPage = currentPage + 1
+    await loadMessageHistory(nextPage, true)
+  }, [currentPage, hasMoreMessages, loadingMore, loadMessageHistory])
 
   // 上传文件
   const uploadFile = useCallback(
@@ -170,7 +229,7 @@ export function useMessages(consultationId?: string) {
           type: 'file',
           content: file.name,
           sender: 'doctor',
-          filePath: fileInfo.path,
+          fileInfo,
         }
 
         return await sendMessage(message)
@@ -229,6 +288,18 @@ export function useMessages(consultationId?: string) {
     [setActiveConversation, markAsRead]
   )
 
+  // 重试所有失败的消息
+  const retryAllFailedMessages = useCallback(async () => {
+    if (!consultationId) return
+    await retryFailedMessages(consultationId)
+  }, [consultationId, retryFailedMessages])
+
+  // 同步消息
+  const syncAllMessages = useCallback(async () => {
+    if (!consultationId) return
+    await syncMessages(consultationId)
+  }, [consultationId, syncMessages])
+
   // 获取消息统计
   const getMessageStats = useCallback(() => {
     const totalUnread = Array.from(unreadCounts.values()).reduce(
@@ -240,12 +311,28 @@ export function useMessages(consultationId?: string) {
       ([_, messages]) => messages.length > 0
     ).length
 
+    const failedMessages = currentMessages.filter(
+      m => m.status === 'failed'
+    ).length
+    const sendingCount = sendingMessages.size
+
     return {
       totalUnread,
       totalConversations,
       activeConversations,
+      failedMessages,
+      sendingCount,
+      hasMoreMessages,
+      currentPage,
     }
-  }, [conversations, unreadCounts])
+  }, [
+    conversations,
+    unreadCounts,
+    currentMessages,
+    sendingMessages,
+    hasMoreMessages,
+    currentPage,
+  ])
 
   // 当 consultationId 变化时，设置为活跃对话并订阅消息
   useEffect(() => {
@@ -253,7 +340,7 @@ export function useMessages(consultationId?: string) {
       setActiveChat(consultationId)
       subscribeToMessages()
 
-      // 如果没有历史消息，加载一页
+      // 如果没有历史消息，加载第一页
       if (currentMessages.length === 0) {
         loadMessageHistory(1)
       }
@@ -276,18 +363,25 @@ export function useMessages(consultationId?: string) {
     messages: currentMessages,
     unreadCount: currentUnreadCount,
     loading,
+    loadingMore,
     error,
     isActive: activeConversation === consultationId,
+    connectionStatus,
+    hasMoreMessages,
+    currentPage,
 
     // 方法
     sendMessage,
     retryMessage,
     loadMessageHistory,
+    loadMoreMessages,
     uploadFile,
     sendFileMessage,
     markMessageAsRead,
     setActiveChat,
     clearError,
+    retryAllFailedMessages,
+    syncAllMessages,
 
     // 订阅管理
     subscribeToMessages,

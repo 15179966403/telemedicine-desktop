@@ -1,6 +1,10 @@
 // 消息相关命令
 
 use serde::{Deserialize, Serialize};
+use crate::database::dao::MessageDao;
+use crate::models::Message as MessageModel;
+use chrono::Utc;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
@@ -41,23 +45,59 @@ pub struct FileUploadResult {
 pub async fn send_message(request: SendMessageRequest) -> Result<Message, String> {
     println!("Sending message: {:?}", request);
 
-    // TODO: 实现实际的消息发送逻辑
+    let message_dao = MessageDao::new();
+    let message_id = Uuid::new_v4().to_string();
+    let timestamp = Utc::now();
 
-    // 模拟发送延迟
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-    let message = Message {
-        id: format!("msg-{}-{}", chrono::Utc::now().timestamp(), uuid::Uuid::new_v4()),
-        consultation_id: request.consultation_id,
-        message_type: request.message_type,
-        content: request.content,
-        sender: request.sender,
-        timestamp: chrono::Utc::now().to_rfc3339(),
-        status: "sent".to_string(),
-        file_path: request.file_path,
+    // 创建消息模型
+    let message_model = MessageModel {
+        id: message_id.clone(),
+        consultation_id: request.consultation_id.clone(),
+        sender_type: request.sender.clone(),
+        message_type: request.message_type.clone(),
+        content: Some(request.content.clone()),
+        file_path: request.file_path.clone(),
+        file_size: None,
+        mime_type: None,
+        timestamp,
+        sync_status: "pending".to_string(),
+        read_status: "unread".to_string(),
     };
 
-    Ok(message)
+    // 保存到本地数据库
+    match message_dao.create(&message_model) {
+        Ok(_) => {
+            println!("Message saved to local database: {}", message_id);
+
+            // TODO: 实际发送到服务器的逻辑
+            // 这里可以添加网络请求代码
+
+            // 模拟发送延迟
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+            // 更新同步状态为已发送
+            if let Err(e) = message_dao.update_sync_status(&message_id, "synced") {
+                println!("Failed to update sync status: {}", e);
+            }
+
+            let response_message = Message {
+                id: message_id,
+                consultation_id: request.consultation_id,
+                message_type: request.message_type,
+                content: request.content,
+                sender: request.sender,
+                timestamp: timestamp.to_rfc3339(),
+                status: "sent".to_string(),
+                file_path: request.file_path,
+            };
+
+            Ok(response_message)
+        }
+        Err(e) => {
+            println!("Failed to save message to database: {}", e);
+            Err(format!("保存消息失败: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -68,53 +108,39 @@ pub async fn get_message_history(
 ) -> Result<MessageList, String> {
     println!("Getting message history for consultation: {}, page: {:?}", consultation_id, page);
 
-    // TODO: 实现从数据库获取消息历史的逻辑
+    let message_dao = MessageDao::new();
+    let page = page.unwrap_or(1) as i32;
+    let limit = limit.unwrap_or(20) as i32;
 
-    // 模拟数据库查询延迟
-    tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
+    match message_dao.find_by_consultation_id(&consultation_id, page, limit) {
+        Ok(page_result) => {
+            let messages: Vec<Message> = page_result.data.into_iter().map(|msg| {
+                Message {
+                    id: msg.id,
+                    consultation_id: msg.consultation_id,
+                    message_type: msg.message_type,
+                    content: msg.content.unwrap_or_default(),
+                    sender: msg.sender_type,
+                    timestamp: msg.timestamp.to_rfc3339(),
+                    status: if msg.sync_status == "synced" { "delivered".to_string() } else { "pending".to_string() },
+                    file_path: msg.file_path,
+                }
+            }).collect();
 
-    // 模拟历史消息数据
-    let mock_messages = vec![
-        Message {
-            id: "msg-1".to_string(),
-            consultation_id: consultation_id.clone(),
-            message_type: "text".to_string(),
-            content: "医生您好，我最近感觉头痛".to_string(),
-            sender: "patient".to_string(),
-            timestamp: "2024-01-20T10:00:00Z".to_string(),
-            status: "delivered".to_string(),
-            file_path: None,
-        },
-        Message {
-            id: "msg-2".to_string(),
-            consultation_id: consultation_id.clone(),
-            message_type: "text".to_string(),
-            content: "您好，请问头痛持续多长时间了？".to_string(),
-            sender: "doctor".to_string(),
-            timestamp: "2024-01-20T10:02:00Z".to_string(),
-            status: "delivered".to_string(),
-            file_path: None,
-        },
-        Message {
-            id: "msg-3".to_string(),
-            consultation_id: consultation_id.clone(),
-            message_type: "text".to_string(),
-            content: "大概有3天了，主要是太阳穴附近疼痛".to_string(),
-            sender: "patient".to_string(),
-            timestamp: "2024-01-20T10:05:00Z".to_string(),
-            status: "delivered".to_string(),
-            file_path: None,
-        },
-    ];
+            let result = MessageList {
+                messages,
+                total: page_result.total as u32,
+                page: page_result.page as u32,
+                has_more: page_result.has_more(),
+            };
 
-    let result = MessageList {
-        messages: mock_messages,
-        total: 3,
-        page: page.unwrap_or(1),
-        has_more: false,
-    };
-
-    Ok(result)
+            Ok(result)
+        }
+        Err(e) => {
+            println!("Failed to get message history: {}", e);
+            Err(format!("获取消息历史失败: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -140,4 +166,71 @@ pub async fn upload_file(file_data: Vec<u8>, file_name: String) -> Result<FileUp
     };
 
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn mark_messages_as_read(consultation_id: String) -> Result<u32, String> {
+    println!("Marking messages as read for consultation: {}", consultation_id);
+
+    let message_dao = MessageDao::new();
+
+    match message_dao.mark_consultation_messages_as_read(&consultation_id, "doctor") {
+        Ok(updated_count) => {
+            println!("Marked {} messages as read", updated_count);
+            Ok(updated_count as u32)
+        }
+        Err(e) => {
+            println!("Failed to mark messages as read: {}", e);
+            Err(format!("标记消息已读失败: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_unread_message_count(consultation_id: String) -> Result<u32, String> {
+    println!("Getting unread message count for consultation: {}", consultation_id);
+
+    let message_dao = MessageDao::new();
+
+    match message_dao.get_unread_count(&consultation_id, "doctor") {
+        Ok(count) => Ok(count as u32),
+        Err(e) => {
+            println!("Failed to get unread count: {}", e);
+            Err(format!("获取未读消息数量失败: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn sync_pending_messages() -> Result<u32, String> {
+    println!("Syncing pending messages");
+
+    let message_dao = MessageDao::new();
+
+    match message_dao.find_unsynced_messages() {
+        Ok(pending_messages) => {
+            let mut synced_count = 0;
+
+            for message in pending_messages {
+                // TODO: 实际同步到服务器的逻辑
+                // 这里可以添加网络请求代码
+
+                // 模拟同步延迟
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+                // 更新同步状态
+                if let Ok(_) = message_dao.update_sync_status(&message.id, "synced") {
+                    synced_count += 1;
+                    println!("Synced message: {}", message.id);
+                }
+            }
+
+            println!("Synced {} messages", synced_count);
+            Ok(synced_count)
+        }
+        Err(e) => {
+            println!("Failed to sync messages: {}", e);
+            Err(format!("同步消息失败: {}", e))
+        }
+    }
 }

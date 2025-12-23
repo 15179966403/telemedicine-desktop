@@ -32,6 +32,9 @@ pub fn run() {
             send_message,
             get_message_history,
             upload_file,
+            mark_messages_as_read,
+            get_unread_message_count,
+            sync_pending_messages,
 
             // 窗口管理命令
             create_new_window,
