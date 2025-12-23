@@ -1,0 +1,1 @@
+export { PatientDetailDrawer } from './PatientDetailDrawer'

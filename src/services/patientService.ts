@@ -1,4 +1,5 @@
 import type { Patient } from '@/types'
+import { PatientCacheService } from './patientCacheService'
 
 export interface PatientQuery {
   page?: number
@@ -17,6 +18,11 @@ export interface PatientList {
 
 export class PatientService {
   private static instance: PatientService
+  private cacheService: PatientCacheService
+
+  constructor() {
+    this.cacheService = PatientCacheService.getInstance()
+  }
 
   static getInstance(): PatientService {
     if (!PatientService.instance) {
@@ -28,6 +34,13 @@ export class PatientService {
   async getPatientList(query: PatientQuery = {}): Promise<PatientList> {
     try {
       console.log('PatientService.getPatientList called with:', query)
+
+      // 尝试从缓存获取数据
+      const cached = await this.cacheService.getCachedPatientList(query)
+      if (cached) {
+        console.log('Returning cached patient list')
+        return cached
+      }
 
       // 模拟 API 调用
       await new Promise(resolve => setTimeout(resolve, 800))
@@ -43,6 +56,8 @@ export class PatientService {
           tags: ['高血压', '糖尿病'],
           lastVisit: new Date('2024-01-15'),
           medicalHistory: [],
+          createdAt: new Date('2024-01-01'),
+          updatedAt: new Date('2024-01-15'),
         },
         {
           id: '2',
@@ -53,15 +68,46 @@ export class PatientService {
           tags: ['孕期检查'],
           lastVisit: new Date('2024-01-20'),
           medicalHistory: [],
+          createdAt: new Date('2024-01-02'),
+          updatedAt: new Date('2024-01-20'),
+        },
+        {
+          id: '3',
+          name: '张大伟',
+          age: 45,
+          gender: 'male',
+          phone: '137****9012',
+          tags: ['心脏病', '高血压'],
+          lastVisit: new Date('2024-01-18'),
+          medicalHistory: [],
+          createdAt: new Date('2024-01-03'),
+          updatedAt: new Date('2024-01-18'),
+        },
+        {
+          id: '4',
+          name: '刘美丽',
+          age: 32,
+          gender: 'female',
+          phone: '136****3456',
+          tags: ['过敏', '哮喘'],
+          lastVisit: new Date('2024-01-22'),
+          medicalHistory: [],
+          createdAt: new Date('2024-01-04'),
+          updatedAt: new Date('2024-01-22'),
         },
       ]
 
-      return {
+      const result = {
         patients: mockPatients,
         total: mockPatients.length,
         page: query.page || 1,
         limit: query.limit || 20,
       }
+
+      // 缓存结果
+      await this.cacheService.cachePatientList(query, result)
+
+      return result
     } catch (error) {
       console.error('Get patient list failed:', error)
       throw new Error('获取患者列表失败')
@@ -71,6 +117,13 @@ export class PatientService {
   async getPatientDetail(patientId: string): Promise<Patient> {
     try {
       console.log('PatientService.getPatientDetail called with:', patientId)
+
+      // 尝试从缓存获取数据
+      const cached = await this.cacheService.getCachedPatient(patientId)
+      if (cached) {
+        console.log('Returning cached patient detail')
+        return cached
+      }
 
       // 模拟 API 调用
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -88,13 +141,31 @@ export class PatientService {
           {
             id: '1',
             patientId,
-            doctorId: '1',
+            consultationId: 'cons_1',
             diagnosis: '高血压',
-            treatment: '降压药物治疗',
+            symptoms: ['头痛', '头晕'],
+            prescription: [
+              {
+                id: 'med_1',
+                medicationName: '氨氯地平片',
+                dosage: '5mg',
+                frequency: '每日一次',
+                duration: '30天',
+                instructions: '餐后服用',
+              },
+            ],
+            examinations: [],
+            doctorId: 'doc_1',
+            doctorName: '张医生',
             createdAt: new Date('2024-01-10'),
           },
         ],
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-15'),
       }
+
+      // 缓存结果
+      await this.cacheService.cachePatient(mockPatient)
 
       return mockPatient
     } catch (error) {
@@ -113,7 +184,10 @@ export class PatientService {
       // 模拟 API 调用
       await new Promise(resolve => setTimeout(resolve, 300))
 
-      // TODO: 实现实际的标签更新逻辑
+      // 更新缓存
+      await this.cacheService.updatePatientCache(patientId, { tags })
+
+      console.log('Patient tags updated successfully')
     } catch (error) {
       console.error('Update patient tags failed:', error)
       throw new Error('更新患者标签失败')
@@ -123,6 +197,14 @@ export class PatientService {
   async searchPatients(keyword: string): Promise<Patient[]> {
     try {
       console.log('PatientService.searchPatients called with:', keyword)
+
+      // 首先尝试从缓存搜索
+      const cachedResults =
+        await this.cacheService.searchCachedPatients(keyword)
+      if (cachedResults.length > 0) {
+        console.log('Returning cached search results')
+        return cachedResults
+      }
 
       // 模拟 API 调用
       await new Promise(resolve => setTimeout(resolve, 400))
@@ -138,8 +220,15 @@ export class PatientService {
           tags: ['高血压', '糖尿病'],
           lastVisit: new Date('2024-01-15'),
           medicalHistory: [],
+          createdAt: new Date('2024-01-01'),
+          updatedAt: new Date('2024-01-15'),
         },
       ]
+
+      // 缓存搜索结果
+      for (const patient of mockResults) {
+        await this.cacheService.cachePatient(patient)
+      }
 
       return mockResults
     } catch (error) {
@@ -158,7 +247,12 @@ export class PatientService {
       const newPatient: Patient = {
         ...patient,
         id: `patient-${Date.now()}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }
+
+      // 缓存新患者
+      await this.cacheService.cachePatient(newPatient)
 
       return newPatient
     } catch (error) {
@@ -185,12 +279,30 @@ export class PatientService {
       const updatedPatient: Patient = {
         ...existingPatient,
         ...updates,
+        updatedAt: new Date(),
       }
+
+      // 更新缓存
+      await this.cacheService.updatePatientCache(patientId, updatedPatient)
 
       return updatedPatient
     } catch (error) {
       console.error('Update patient failed:', error)
       throw new Error('更新患者信息失败')
     }
+  }
+
+  /**
+   * 清理过期缓存
+   */
+  async cleanCache(): Promise<void> {
+    await this.cacheService.cleanExpiredCache()
+  }
+
+  /**
+   * 获取缓存统计
+   */
+  async getCacheStats() {
+    return await this.cacheService.getCacheStats()
   }
 }

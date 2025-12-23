@@ -336,3 +336,50 @@ export const messageCache = {
 }
 
 export { storage, sessionStorage, cache }
+
+// Export StorageService as an alias for StorageManager for compatibility
+export const StorageService = {
+  setItem: <T>(key: string, value: T): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      try {
+        storage.setItem(key, value)
+        resolve()
+      } catch (error) {
+        reject(error)
+      }
+    })
+  },
+
+  getItem: <T>(key: string): Promise<T | null> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const result = storage.getItem<T>(key)
+        resolve(result)
+      } catch (error) {
+        reject(error)
+      }
+    })
+  },
+
+  removeItem: (key: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      try {
+        storage.removeItem(key)
+        resolve()
+      } catch (error) {
+        reject(error)
+      }
+    })
+  },
+
+  getAllKeys: (): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const keys = storage.getAllKeys()
+        resolve(keys)
+      } catch (error) {
+        reject(error)
+      }
+    })
+  },
+}

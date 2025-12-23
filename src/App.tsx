@@ -7,7 +7,7 @@ import {
 } from 'react-router-dom'
 import { ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { LoginPage, WorkspacePage } from '@/pages'
+import { LoginPage, WorkspacePage, PatientListPage } from '@/pages'
 import { useAuth } from '@/hooks'
 import './App.css'
 
@@ -53,6 +53,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <WorkspacePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patients"
+            element={
+              <ProtectedRoute>
+                <PatientListPage />
               </ProtectedRoute>
             }
           />
