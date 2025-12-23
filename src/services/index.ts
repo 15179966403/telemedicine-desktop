@@ -5,6 +5,11 @@ export { MessageService } from './messageService'
 export { FileService } from './fileService'
 export { WindowService } from './windowService'
 
+// 文件管理服务
+export { FileStorageService } from './fileStorageService'
+export { FileValidationService } from './fileValidationService'
+export { FileCacheService } from './fileCacheService'
+
 // 窗口间通信服务
 export * from './windowCommunication'
 

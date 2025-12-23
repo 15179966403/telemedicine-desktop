@@ -13,4 +13,8 @@ export {
   MedicalTemplates,
 } from './ChatInterface'
 
+// 文件管理组件
+export { FileUploadComponent } from './FileUpload'
+export { FilePreviewComponent } from './FilePreview'
+
 // 这里将在后续任务中添加具体的组件导出

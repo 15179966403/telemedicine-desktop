@@ -5,6 +5,7 @@ pub mod patient;
 pub mod message;
 pub mod window;
 pub mod database;
+pub mod file;
 
 // 重新导出所有命令
 pub use auth::*;
@@ -12,3 +13,4 @@ pub use patient::*;
 pub use message::*;
 pub use window::*;
 pub use database::*;
+pub use file::*;

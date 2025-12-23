@@ -1,15 +1,19 @@
-export interface FileInfo {
-  id: string
-  name: string
-  size: number
-  type: string
-  url: string
-  localPath?: string
-  uploadedAt: Date
-}
+import { FileValidationService } from './fileValidationService'
+import { FileStorageService } from './fileStorageService'
+import { FileCacheService } from './fileCacheService'
+import { FileInfo, FileValidationRules } from '../types/file'
 
 export class FileService {
   private static instance: FileService
+  private validationService: FileValidationService
+  private storageService: FileStorageService
+  private cacheService: FileCacheService
+
+  constructor() {
+    this.validationService = FileValidationService.getInstance()
+    this.storageService = FileStorageService.getInstance()
+    this.cacheService = FileCacheService.getInstance()
+  }
 
   static getInstance(): FileService {
     if (!FileService.instance) {
@@ -20,15 +24,16 @@ export class FileService {
 
   async uploadFile(
     file: File,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    validationRules?: Partial<FileValidationRules>
   ): Promise<FileInfo> {
     try {
       console.log('FileService.uploadFile called with:', file.name)
 
-      // 验证文件类型和大小
-      this.validateFile(file)
+      // 1. 验证文件
+      await this.validationService.validateFile(file, validationRules)
 
-      // 模拟上传进度
+      // 2. 模拟上传进度
       if (onProgress) {
         for (let i = 0; i <= 100; i += 10) {
           await new Promise(resolve => setTimeout(resolve, 100))
@@ -36,15 +41,34 @@ export class FileService {
         }
       }
 
-      // 模拟文件上传完成
+      // 3. 保存文件到本地存储
+      const fileData = await this.fileToArrayBuffer(file)
+      const localPath = await this.storageService.saveFileLocally(
+        fileData,
+        file.name
+      )
+
+      // 4. 创建文件信息
       const fileInfo: FileInfo = {
         id: `file-${Date.now()}-${Math.random()}`,
         name: file.name,
         size: file.size,
         type: file.type,
         url: `https://cdn.telemedicine.com/files/${file.name}`,
+        localPath,
         uploadedAt: new Date(),
       }
+
+      // 5. 添加到缓存
+      await this.cacheService.addToCache({
+        id: fileInfo.id,
+        fileUrl: fileInfo.url,
+        localPath,
+        fileSize: file.size,
+        mimeType: file.type,
+        downloadedAt: new Date(),
+        lastAccessed: new Date(),
+      })
 
       return fileInfo
     } catch (error) {
@@ -60,11 +84,31 @@ export class FileService {
         fileName,
       })
 
-      // 模拟文件下载
+      // 1. 检查是否在缓存中
+      const isInCache = await this.cacheService.isInCache(fileUrl)
+      if (isInCache) {
+        const cacheInfo = await this.cacheService.getFromCache(fileUrl)
+        if (cacheInfo?.localPath) {
+          console.log('File found in cache:', cacheInfo.localPath)
+          return cacheInfo.localPath
+        }
+      }
+
+      // 2. 下载文件
+      // TODO: 实现实际的文件下载逻辑，调用 Tauri API
       await new Promise(resolve => setTimeout(resolve, 800))
 
-      // TODO: 实现实际的文件下载逻辑，调用 Tauri API
+      // 3. 保存到本地
       const localPath = `/temp/downloads/${fileName}`
+
+      // 4. 添加到缓存
+      await this.cacheService.addToCache({
+        id: `download-${Date.now()}`,
+        fileUrl,
+        localPath,
+        downloadedAt: new Date(),
+        lastAccessed: new Date(),
+      })
 
       return localPath
     } catch (error) {
@@ -99,8 +143,18 @@ export class FileService {
     try {
       console.log('FileService.deleteFile called with:', fileId)
 
-      // 模拟删除操作
-      await new Promise(resolve => setTimeout(resolve, 300))
+      // 1. 获取文件信息
+      const fileInfo = await this.getFileInfo(fileId)
+
+      // 2. 从缓存中删除
+      if (fileInfo.url) {
+        await this.cacheService.removeFromCache(fileInfo.url)
+      }
+
+      // 3. 删除本地文件
+      if (fileInfo.localPath) {
+        await this.storageService.deleteLocalFile(fileInfo.localPath)
+      }
 
       // TODO: 实现实际的文件删除逻辑
     } catch (error) {
@@ -137,45 +191,49 @@ export class FileService {
     try {
       console.log('FileService.cleanupExpiredFiles called')
 
-      // 模拟清理过期文件
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // TODO: 实现实际的文件清理逻辑
+      // 使用缓存服务进行清理
+      const result = await this.cacheService.performCleanup()
+      console.log(
+        `Cleanup completed: ${result.deletedFiles} files deleted, ${result.freedSpace} bytes freed`
+      )
     } catch (error) {
       console.error('Cleanup expired files failed:', error)
       // 清理失败不应该影响主要功能
     }
   }
 
+  /**
+   * 将File对象转换为ArrayBuffer
+   */
+  private async fileToArrayBuffer(file: File): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as ArrayBuffer)
+      reader.onerror = () => reject(new Error('读取文件失败'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  async getCacheStatistics() {
+    return await this.cacheService.getCacheStatistics()
+  }
+
+  /**
+   * 清空所有缓存
+   */
+  async clearAllCache(): Promise<void> {
+    await this.cacheService.clearAllCache()
+  }
+
   private validateFile(file: File): void {
-    const maxSize = 50 * 1024 * 1024 // 50MB
-    const allowedTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'application/pdf',
-      'text/plain',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ]
-
-    if (file.size > maxSize) {
-      throw new Error('文件大小不能超过 50MB')
-    }
-
-    if (!allowedTypes.includes(file.type)) {
-      throw new Error('不支持的文件类型')
-    }
-
-    // 检查文件名
-    if (file.name.length > 255) {
-      throw new Error('文件名过长')
-    }
-
-    // 检查文件名中的特殊字符
-    const invalidChars = /[<>:"/\\|?*]/
-    if (invalidChars.test(file.name)) {
-      throw new Error('文件名包含非法字符')
+    // 使用新的验证服务进行基础验证
+    try {
+      this.validationService.validateFile(file)
+    } catch (error) {
+      throw error
     }
   }
 

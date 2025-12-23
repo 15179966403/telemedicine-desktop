@@ -1,0 +1,182 @@
+.file-preview-component {
+  min-height: 400px;
+}
+
+.preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+}
+
+.preview-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  text-align: center;
+}
+
+.preview-not-supported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  text-align: center;
+  padding: 40px;
+}
+
+.preview-not-supported .file-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.image-preview {
+  display: flex;
+  flex-direction: column;
+}
+
+.image-controls {
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  max-height: 500px;
+  overflow: auto;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.image-container .ant-image {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.text-preview,
+.pdf-preview {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+}
+
+.text-preview iframe,
+.pdf-preview iframe {
+  background: white;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .file-preview-component {
+    min-height: 300px;
+  }
+
+  .image-controls {
+    padding: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .image-controls .ant-space {
+    flex-wrap: wrap;
+  }
+
+  .image-container {
+    min-height: 300px;
+    max-height: 400px;
+  }
+
+  .text-preview iframe,
+  .pdf-preview iframe {
+    height: 400px !important;
+  }
+
+  .preview-not-supported {
+    height: 300px;
+    padding: 20px;
+  }
+
+  .preview-not-supported .file-icon {
+    font-size: 48px;
+  }
+}
+
+/* 图片缩放动画 */
+.image-container img {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 控制按钮样式 */
+.image-controls .ant-btn {
+  border-radius: 6px;
+}
+
+.image-controls .ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 加载状态样式 */
+.preview-loading .ant-spin {
+  margin-bottom: 16px;
+}
+
+/* 错误状态样式 */
+.preview-error {
+  color: #ff4d4f;
+  font-size: 16px;
+}
+
+/* 模态框样式调整 */
+.ant-modal-body {
+  padding: 24px;
+}
+
+.ant-modal-header {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-modal-footer {
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 文件信息样式 */
+.preview-not-supported .ant-typography {
+  margin-bottom: 8px;
+}
+
+.preview-not-supported .ant-typography h4 {
+  margin-bottom: 16px;
+  color: #1890ff;
+}
+
+/* 滚动条样式 */
+.image-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.image-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.image-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.image-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

@@ -1,0 +1,90 @@
+.file-upload-component {
+  padding: 16px;
+}
+
+.upload-dragger {
+  margin-bottom: 16px;
+}
+
+.uploading-files,
+.uploaded-files {
+  margin-top: 16px;
+}
+
+.uploading-files h4,
+.uploaded-files h4 {
+  margin-bottom: 12px;
+  color: #1890ff;
+  font-weight: 600;
+}
+
+.file-preview {
+  text-align: center;
+}
+
+.file-info {
+  text-align: left;
+  padding: 20px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.file-info p {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.ant-list-item-meta-avatar {
+  display: flex;
+  align-items: center;
+}
+
+.ant-progress {
+  margin-top: 4px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .file-upload-component {
+    padding: 8px;
+  }
+
+  .ant-list-item-action {
+    margin-left: 8px;
+  }
+
+  .ant-list-item-action > li {
+    padding: 0 4px;
+  }
+}
+
+/* 拖拽状态样式 */
+.upload-dragger.ant-upload-drag-hover {
+  border-color: #1890ff;
+}
+
+.upload-dragger .ant-upload-drag-icon {
+  color: #1890ff;
+}
+
+/* 文件列表项样式 */
+.ant-list-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-list-item:last-child {
+  border-bottom: none;
+}
+
+/* 错误状态样式 */
+.ant-typography.ant-typography-danger {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* 预览模态框样式 */
+.ant-modal-body .file-preview img {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}

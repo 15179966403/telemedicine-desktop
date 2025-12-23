@@ -10,5 +10,8 @@ export * from './message'
 // 窗口管理相关类型
 export * from './window'
 
+// 文件管理相关类型
+export * from './file'
+
 // 通用类型
 export * from './common'
