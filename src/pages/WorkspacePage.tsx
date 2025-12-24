@@ -69,11 +69,13 @@ export const WorkspacePage: React.FC = () => {
             <Card
               hoverable
               style={{ textAlign: 'center', height: 200 }}
-              bodyStyle={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                height: '100%',
+              styles={{
+                body: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  height: '100%',
+                },
               }}
               onClick={handleNavigateToPatients}
             >
@@ -91,11 +93,13 @@ export const WorkspacePage: React.FC = () => {
             <Card
               hoverable
               style={{ textAlign: 'center', height: 200 }}
-              bodyStyle={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                height: '100%',
+              styles={{
+                body: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  height: '100%',
+                },
               }}
               onClick={handleNavigateToConsultations}
             >
@@ -113,11 +117,13 @@ export const WorkspacePage: React.FC = () => {
             <Card
               hoverable
               style={{ textAlign: 'center', height: 200 }}
-              bodyStyle={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                height: '100%',
+              styles={{
+                body: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  height: '100%',
+                },
               }}
             >
               <BarChartOutlined
@@ -134,11 +140,13 @@ export const WorkspacePage: React.FC = () => {
             <Card
               hoverable
               style={{ textAlign: 'center', height: 200 }}
-              bodyStyle={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                height: '100%',
+              styles={{
+                body: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  height: '100%',
+                },
               }}
             >
               <SettingOutlined

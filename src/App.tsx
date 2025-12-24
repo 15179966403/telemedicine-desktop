@@ -27,9 +27,11 @@ const PageLoader: React.FC = () => (
       justifyContent: 'center',
       alignItems: 'center',
       height: '100vh',
+      flexDirection: 'column',
     }}
   >
-    <Spin size="large" tip="加载中..." />
+    <Spin size="large" />
+    <div style={{ marginTop: 16, color: '#666' }}>加载中...</div>
   </div>
 )
 
@@ -60,7 +62,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 function App() {
   return (
     <ConfigProvider locale={zhCN}>
-      <Router>
+      <Router future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route

@@ -12,7 +12,6 @@ import type { Consultation } from '@/types'
 
 const { Header, Content } = Layout
 const { Title } = Typography
-const { TabPane } = Tabs
 
 export const ConsultationManagementPage: React.FC = () => {
   const { pendingConsultations, activeConsultations, completedConsultations } =
@@ -51,55 +50,70 @@ export const ConsultationManagementPage: React.FC = () => {
       </Header>
 
       <Content style={{ padding: '24px' }}>
-        <Tabs defaultActiveKey="pending" size="large">
-          <TabPane
-            tab={
-              <span>
-                <ClockCircleOutlined />
-                待接诊 ({pendingConsultations.length})
-              </span>
-            }
-            key="pending"
-          >
-            <PendingConsultationList
-              onSelectConsultation={handleSelectConsultation}
-            />
-          </TabPane>
-
-          <TabPane
-            tab={
-              <span>
-                <MessageOutlined />
-                进行中 ({activeConsultations.length})
-              </span>
-            }
-            key="active"
-          >
-            <div
-              style={{ padding: '40px', textAlign: 'center', color: '#666' }}
-            >
-              <MessageOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <p>进行中的问诊列表功能开发中...</p>
-            </div>
-          </TabPane>
-
-          <TabPane
-            tab={
-              <span>
-                <CheckCircleOutlined />
-                已完成 ({completedConsultations.length})
-              </span>
-            }
-            key="completed"
-          >
-            <div
-              style={{ padding: '40px', textAlign: 'center', color: '#666' }}
-            >
-              <CheckCircleOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <p>已完成的问诊列表功能开发中...</p>
-            </div>
-          </TabPane>
-        </Tabs>
+        <Tabs
+          defaultActiveKey="pending"
+          size="large"
+          items={[
+            {
+              key: 'pending',
+              label: (
+                <span>
+                  <ClockCircleOutlined />
+                  待接诊 ({pendingConsultations.length})
+                </span>
+              ),
+              children: (
+                <PendingConsultationList
+                  onSelectConsultation={handleSelectConsultation}
+                />
+              ),
+            },
+            {
+              key: 'active',
+              label: (
+                <span>
+                  <MessageOutlined />
+                  进行中 ({activeConsultations.length})
+                </span>
+              ),
+              children: (
+                <div
+                  style={{
+                    padding: '40px',
+                    textAlign: 'center',
+                    color: '#666',
+                  }}
+                >
+                  <MessageOutlined style={{ fontSize: 48, marginBottom: 16 }} />
+                  <p>进行中的问诊列表功能开发中...</p>
+                </div>
+              ),
+            },
+            {
+              key: 'completed',
+              label: (
+                <span>
+                  <CheckCircleOutlined />
+                  已完成 ({completedConsultations.length})
+                </span>
+              ),
+              children: (
+                <div
+                  style={{
+                    padding: '40px',
+                    textAlign: 'center',
+                    color: '#666',
+                  }}
+                >
+                  <CheckCircleOutlined
+                    style={{ fontSize: 48, marginBottom: 16 }}
+                  />
+                  <p>已完成的问诊列表功能开发中...</p>
+                </div>
+              ),
+            },
+          ]}
+        />
       </Content>
 
       {/* 问诊详情抽屉 */}

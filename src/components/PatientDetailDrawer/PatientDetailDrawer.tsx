@@ -25,7 +25,6 @@ import {
 import type { Patient, MedicalRecord, ConsultationSummary } from '@/types'
 
 const { Title, Text, Paragraph } = Typography
-const { TabPane } = Tabs
 
 interface PatientDetailDrawerProps {
   patient: Patient
@@ -263,17 +262,26 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     >
       <Spin spinning={loading}>
         <div style={{ padding: '24px' }}>
-          <Tabs defaultActiveKey="basic">
-            <TabPane tab="基本信息" key="basic">
-              {renderBasicInfo()}
-            </TabPane>
-            <TabPane tab="病历记录" key="medical">
-              {renderMedicalHistory()}
-            </TabPane>
-            <TabPane tab="问诊记录" key="consultation">
-              {renderConsultationHistory()}
-            </TabPane>
-          </Tabs>
+          <Tabs
+            defaultActiveKey="basic"
+            items={[
+              {
+                key: 'basic',
+                label: '基本信息',
+                children: renderBasicInfo(),
+              },
+              {
+                key: 'medical',
+                label: '病历记录',
+                children: renderMedicalHistory(),
+              },
+              {
+                key: 'consultation',
+                label: '问诊记录',
+                children: renderConsultationHistory(),
+              },
+            ]}
+          />
         </div>
       </Spin>
     </Drawer>

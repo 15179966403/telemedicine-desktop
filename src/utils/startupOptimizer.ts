@@ -1,6 +1,9 @@
 // 应用启动优化工具
 import { invoke } from '@tauri-apps/api/core'
 
+// 检查是否在 Tauri 环境中运行
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+
 export interface StartupMetrics {
   startTime: number
   databaseInitTime?: number
@@ -48,6 +51,8 @@ export class StartupOptimizer {
    * 初始化数据库
    */
   private static async initDatabase(): Promise<void> {
+    if (!isTauri) return
+
     const start = Date.now()
     try {
       await invoke('init_database')
@@ -61,6 +66,8 @@ export class StartupOptimizer {
    * 预热缓存
    */
   private static async warmupCache(): Promise<void> {
+    if (!isTauri) return
+
     try {
       await invoke('warmup_file_cache')
     } catch (error) {
@@ -72,6 +79,8 @@ export class StartupOptimizer {
    * 检查会话
    */
   private static async checkSession(): Promise<void> {
+    if (!isTauri) return
+
     const start = Date.now()
     try {
       await invoke('auth_validate_session')
@@ -127,6 +136,8 @@ export class StartupOptimizer {
    * 清理过期缓存
    */
   private static async cleanupExpiredCache(): Promise<void> {
+    if (!isTauri) return
+
     try {
       await invoke('cleanup_expired_cache_files')
     } catch (error) {

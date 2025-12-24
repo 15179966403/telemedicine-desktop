@@ -22,7 +22,6 @@ import type { LoginCredentials } from '@/types'
 import './LoginPage.css'
 
 const { Title, Text } = Typography
-const { TabPane } = Tabs
 
 interface LoginFormData {
   username?: string
@@ -247,7 +246,7 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="login-page">
       <div className="login-container">
-        <Card className="login-card">
+        <Card className="login-card" styles={{ body: {} }}>
           <div className="login-header">
             <Title level={2}>互联网医院</Title>
             <Text type="secondary">医生工作台</Text>
@@ -260,17 +259,24 @@ export const LoginPage: React.FC = () => {
               form.resetFields()
             }}
             centered
-          >
-            <TabPane tab="密码登录" key="password">
-              {renderPasswordLogin()}
-            </TabPane>
-            <TabPane tab="短信登录" key="sms">
-              {renderSmsLogin()}
-            </TabPane>
-            <TabPane tab="实名认证" key="realname">
-              {renderRealnameLogin()}
-            </TabPane>
-          </Tabs>
+            items={[
+              {
+                key: 'password',
+                label: '密码登录',
+                children: renderPasswordLogin(),
+              },
+              {
+                key: 'sms',
+                label: '短信登录',
+                children: renderSmsLogin(),
+              },
+              {
+                key: 'realname',
+                label: '实名认证',
+                children: renderRealnameLogin(),
+              },
+            ]}
+          />
 
           <div className="login-footer">
             <Text type="secondary" style={{ fontSize: '12px' }}>

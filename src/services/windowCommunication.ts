@@ -7,6 +7,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, emit } from '@tauri-apps/api/event'
 import type { WindowInfo, WindowEvent } from '@/types'
 
+// 检查是否在 Tauri 环境中运行
+const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+
 export interface WindowMessage {
   type: string
   payload: any
@@ -57,6 +60,8 @@ class WindowCommunicationServiceImpl implements WindowCommunicationService {
   }
 
   private async setupEventListeners(): Promise<void> {
+    if (!isTauri) return
+
     try {
       // 监听窗口间消息
       await listen('window-message', event => {
@@ -109,6 +114,8 @@ class WindowCommunicationServiceImpl implements WindowCommunicationService {
     type: string,
     payload: any
   ): Promise<void> {
+    if (!isTauri) return
+
     const message: WindowMessage = {
       type,
       payload,
@@ -127,6 +134,8 @@ class WindowCommunicationServiceImpl implements WindowCommunicationService {
   }
 
   async broadcastMessage(type: string, payload: any): Promise<void> {
+    if (!isTauri) return
+
     const message: WindowMessage = {
       type,
       payload,
@@ -224,7 +233,7 @@ export const syncMessageData = async (messageData: any) => {
   await windowCommunicationService.syncData('message', messageData)
 }
 
-export const syncConsultationData = async (consultationData: any) => {
+export const syncConsultationData = async (consultationData: unknown) => {
   await windowCommunicationService.syncData('consultation', consultationData)
 }
 
