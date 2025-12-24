@@ -111,6 +111,10 @@ impl WebSocketClient {
 
     // 连接到 WebSocket 服务器
     pub async fn connect(&self) -> Result<()> {
+        Box::pin(self.connect_internal()).await
+    }
+
+    async fn connect_internal(&self) -> Result<()> {
         self.set_connection_status(ConnectionStatus::Connecting).await;
 
         // 添加认证参数到 URL
@@ -293,7 +297,7 @@ impl WebSocketClient {
 
     // 私有方法：启动消息处理循环
     async fn start_message_loop(&self, ws_stream: tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>) {
-        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+        let (ws_sender, mut ws_receiver) = ws_stream.split();
         let event_sender = self.event_sender.clone();
         let connection_status = self.connection_status.clone();
 

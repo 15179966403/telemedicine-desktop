@@ -1,8 +1,8 @@
 // 消息相关命令
 
 use serde::{Deserialize, Serialize};
-use crate::database::dao::MessageDao;
-use crate::models::Message as MessageModel;
+use crate::database::dao::{MessageDao, BaseDao};
+use crate::models::{Message as MessageModel, MessageType, SenderType, SyncStatus, ReadStatus};
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -49,23 +49,41 @@ pub async fn send_message(request: SendMessageRequest) -> Result<Message, String
     let message_id = Uuid::new_v4().to_string();
     let timestamp = Utc::now();
 
+    // 解析sender_type和message_type
+    let sender_type = match request.sender.as_str() {
+        "doctor" => SenderType::Doctor,
+        "patient" => SenderType::Patient,
+        _ => return Err("Invalid sender type".to_string()),
+    };
+
+    let message_type = match request.message_type.as_str() {
+        "text" => MessageType::Text,
+        "image" => MessageType::Image,
+        "voice" => MessageType::Voice,
+        "file" => MessageType::File,
+        "template" => MessageType::Template,
+        _ => return Err("Invalid message type".to_string()),
+    };
+
     // 创建消息模型
     let message_model = MessageModel {
         id: message_id.clone(),
         consultation_id: request.consultation_id.clone(),
-        sender_type: request.sender.clone(),
-        message_type: request.message_type.clone(),
+        sender_type,
+        message_type,
         content: Some(request.content.clone()),
         file_path: request.file_path.clone(),
         file_size: None,
         mime_type: None,
         timestamp,
-        sync_status: "pending".to_string(),
-        read_status: "unread".to_string(),
+        sync_status: SyncStatus::Pending,
+        read_status: ReadStatus::Unread,
     };
 
     // 保存到本地数据库
-    match message_dao.create(&message_model) {
+    let create_result = message_dao.create(&message_model);
+
+    match create_result {
         Ok(_) => {
             println!("Message saved to local database: {}", message_id);
 
@@ -114,24 +132,45 @@ pub async fn get_message_history(
 
     match message_dao.find_by_consultation_id(&consultation_id, page, limit) {
         Ok(page_result) => {
-            let messages: Vec<Message> = page_result.data.into_iter().map(|msg| {
+            let messages: Vec<Message> = page_result.items.into_iter().map(|msg| {
+                let sender = match msg.sender_type {
+                    SenderType::Doctor => "doctor",
+                    SenderType::Patient => "patient",
+                }.to_string();
+
+                let msg_type = match msg.message_type {
+                    MessageType::Text => "text",
+                    MessageType::Image => "image",
+                    MessageType::Voice => "voice",
+                    MessageType::File => "file",
+                    MessageType::Template => "template",
+                }.to_string();
+
+                let status = match msg.sync_status {
+                    SyncStatus::Synced => "delivered",
+                    SyncStatus::Pending => "pending",
+                    SyncStatus::Failed => "failed",
+                }.to_string();
+
                 Message {
                     id: msg.id,
                     consultation_id: msg.consultation_id,
-                    message_type: msg.message_type,
+                    message_type: msg_type,
                     content: msg.content.unwrap_or_default(),
-                    sender: msg.sender_type,
+                    sender,
                     timestamp: msg.timestamp.to_rfc3339(),
-                    status: if msg.sync_status == "synced" { "delivered".to_string() } else { "pending".to_string() },
+                    status,
                     file_path: msg.file_path,
                 }
             }).collect();
+
+            let has_more = (page_result.page as u32) < (page_result.total_pages as u32);
 
             let result = MessageList {
                 messages,
                 total: page_result.total as u32,
                 page: page_result.page as u32,
-                has_more: page_result.has_more(),
+                has_more,
             };
 
             Ok(result)
@@ -207,7 +246,9 @@ pub async fn sync_pending_messages() -> Result<u32, String> {
 
     let message_dao = MessageDao::new();
 
-    match message_dao.find_unsynced_messages() {
+    let pending_result = message_dao.find_unsynced_messages();
+
+    match pending_result {
         Ok(pending_messages) => {
             let mut synced_count = 0;
 

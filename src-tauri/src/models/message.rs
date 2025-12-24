@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 
 // 消息类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +19,32 @@ pub enum MessageType {
     Template,
 }
 
+impl FromSql for MessageType {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "text" => Ok(MessageType::Text),
+            "image" => Ok(MessageType::Image),
+            "voice" => Ok(MessageType::Voice),
+            "file" => Ok(MessageType::File),
+            "template" => Ok(MessageType::Template),
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+impl ToSql for MessageType {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        let s = match self {
+            MessageType::Text => "text",
+            MessageType::Image => "image",
+            MessageType::Voice => "voice",
+            MessageType::File => "file",
+            MessageType::Template => "template",
+        };
+        Ok(ToSqlOutput::from(s))
+    }
+}
+
 // 发送者类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SenderType {
@@ -25,6 +52,26 @@ pub enum SenderType {
     Doctor,
     #[serde(rename = "patient")]
     Patient,
+}
+
+impl FromSql for SenderType {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "doctor" => Ok(SenderType::Doctor),
+            "patient" => Ok(SenderType::Patient),
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+impl ToSql for SenderType {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        let s = match self {
+            SenderType::Doctor => "doctor",
+            SenderType::Patient => "patient",
+        };
+        Ok(ToSqlOutput::from(s))
+    }
 }
 
 // 同步状态枚举
@@ -38,6 +85,28 @@ pub enum SyncStatus {
     Failed,
 }
 
+impl FromSql for SyncStatus {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "pending" => Ok(SyncStatus::Pending),
+            "synced" => Ok(SyncStatus::Synced),
+            "failed" => Ok(SyncStatus::Failed),
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+impl ToSql for SyncStatus {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        let s = match self {
+            SyncStatus::Pending => "pending",
+            SyncStatus::Synced => "synced",
+            SyncStatus::Failed => "failed",
+        };
+        Ok(ToSqlOutput::from(s))
+    }
+}
+
 // 已读状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadStatus {
@@ -45,6 +114,26 @@ pub enum ReadStatus {
     Unread,
     #[serde(rename = "read")]
     Read,
+}
+
+impl FromSql for ReadStatus {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "unread" => Ok(ReadStatus::Unread),
+            "read" => Ok(ReadStatus::Read),
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+impl ToSql for ReadStatus {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        let s = match self {
+            ReadStatus::Unread => "unread",
+            ReadStatus::Read => "read",
+        };
+        Ok(ToSqlOutput::from(s))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

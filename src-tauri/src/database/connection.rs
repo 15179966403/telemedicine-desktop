@@ -136,8 +136,8 @@ impl DatabaseManager {
         }
 
         // 执行备份
-        let backup_conn = Connection::open(backup_path)?;
-        let backup = rusqlite::backup::Backup::new(&*conn, &backup_conn)?;
+        let mut backup_conn = Connection::open(backup_path)?;
+        let backup = rusqlite::backup::Backup::new(&*conn, &mut backup_conn)?;
         backup.run_to_completion(5, std::time::Duration::from_millis(250), None)?;
 
         println!("Database backup completed: {:?}", backup_path);

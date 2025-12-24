@@ -3,10 +3,6 @@
   "productName": "互联网医院桌面端",
   "version": "1.0.0",
   "identifier": "com.telemedicine.desktop",
-  "description": "专为医生设计的互联网医院桌面应用，支持患者管理和在线问诊",
-  "authors": ["Telemedicine Team"],
-  "homepage": "https://telemedicine.example.com",
-  "license": "Proprietary",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -44,17 +40,6 @@
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true,
       "menuOnLeftClick": false
-    },
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "https://updates.telemedicine.example.com/{{target}}/{{arch}}/{{current_version}}"
-      ],
-      "dialog": true,
-      "pubkey": "YOUR_PUBLIC_KEY_HERE",
-      "windows": {
-        "installMode": "passive"
-      }
     }
   },
   "bundle": {
@@ -80,14 +65,7 @@
         "language": "zh-CN",
         "template": null
       },
-      "nsis": {
-        "installerIcon": "icons/icon.ico",
-        "headerImage": null,
-        "sidebarImage": null,
-        "installMode": "perUser",
-        "languages": ["SimpChinese"],
-        "displayLanguageSelector": false
-      }
+      "nsis": null
     },
     "macOS": {
       "minimumSystemVersion": "10.13",

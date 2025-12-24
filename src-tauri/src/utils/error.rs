@@ -111,6 +111,12 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+impl From<anyhow::Error> for AppError {
+    fn from(err: anyhow::Error) -> Self {
+        AppError::unknown_error(err.to_string())
+    }
+}
+
 // 结果类型别名
 pub type AppResult<T> = Result<T, AppError>;
 
