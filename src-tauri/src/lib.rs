@@ -10,7 +10,8 @@ mod utils;
 use commands::*;
 use commands::window::WindowManagerState;
 use commands::websocket::WebSocketManagerState;
-use services::WebSocketManager;
+use commands::security::SecurityServiceState;
+use services::{WebSocketManager, SecurityService};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -20,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(WindowManagerState::default())
         .manage(Arc::new(Mutex::new(WebSocketManager::new())) as WebSocketManagerState)
+        .manage(Arc::new(Mutex::new(SecurityService::new(300))) as SecurityServiceState) // 5分钟自动锁屏
         .invoke_handler(tauri::generate_handler![
             // 认证相关命令
             auth_login,
@@ -93,6 +95,20 @@ pub fn run() {
             unsubscribe_from_consultation,
             send_read_receipt,
             send_typing_status,
+
+            // 安全相关命令
+            encrypt_sensitive_data,
+            decrypt_sensitive_data,
+            log_audit,
+            get_audit_logs,
+            detect_anomalies,
+            record_failed_login,
+            reset_failed_login,
+            should_auto_lock,
+            get_last_activity,
+            get_anomaly_records,
+            resolve_anomaly,
+            cleanup_old_security_records,
         ])
         .setup(|app| {
             // 初始化数据库

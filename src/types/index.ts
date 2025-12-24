@@ -13,5 +13,8 @@ export * from './window'
 // 文件管理相关类型
 export * from './file'
 
+// 安全相关类型
+export * from './security'
+
 // 通用类型
 export * from './common'
