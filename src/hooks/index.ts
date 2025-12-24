@@ -10,3 +10,6 @@ export { useConsultations } from './useConsultations'
 
 // 错误处理和撤销管理 hooks
 export { useUndoManager, useUndoKeyboardShortcuts } from './useUndoManager'
+
+// 性能监控 hooks
+export { usePerformance, useMemoryMonitor } from './usePerformance'

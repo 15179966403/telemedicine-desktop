@@ -40,3 +40,6 @@ export {
   LoadingWrapper,
 } from './LoadingIndicator'
 export { ConfirmDialog, useConfirmDialog } from './ConfirmDialog'
+
+// 性能优化组件
+export { VirtualList, DynamicVirtualList } from './VirtualList'

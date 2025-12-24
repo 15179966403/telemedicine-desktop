@@ -111,3 +111,5 @@ export const ConsultationManagementPage: React.FC = () => {
     </Layout>
   )
 }
+
+export default ConsultationManagementPage

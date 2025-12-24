@@ -1,0 +1,24 @@
+.virtual-list-container {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.virtual-list-content {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-list-items {
+  width: 100%;
+}
+
+.virtual-list-item {
+  width: 100%;
+}
+
+/* 优化滚动性能 */
+.virtual-list-container {
+  will-change: scroll-position;
+  -webkit-overflow-scrolling: touch;
+}

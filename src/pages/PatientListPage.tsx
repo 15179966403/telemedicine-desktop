@@ -305,3 +305,5 @@ export const PatientListPage: React.FC = () => {
     </Layout>
   )
 }
+
+export default PatientListPage

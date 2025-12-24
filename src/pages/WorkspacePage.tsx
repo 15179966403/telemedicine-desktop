@@ -155,3 +155,5 @@ export const WorkspacePage: React.FC = () => {
     </Layout>
   )
 }
+
+export default WorkspacePage

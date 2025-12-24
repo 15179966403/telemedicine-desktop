@@ -1,0 +1,23 @@
+.performance-monitor {
+  padding: 16px;
+}
+
+.performance-stats-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.performance-stat-item {
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.performance-stat-item:last-child {
+  border-bottom: none;
+}
+
+.stat-name {
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #1890ff;
+}
