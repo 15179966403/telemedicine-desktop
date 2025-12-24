@@ -65,6 +65,9 @@ export interface Consultation {
   completedAt?: Date
   lastMessage?: Message
   unreadCount: number
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  estimatedDuration?: number // 预计问诊时长（分钟）
+  actualDuration?: number // 实际问诊时长（分钟）
 }
 
 // 问诊类型
@@ -109,6 +112,26 @@ export interface MessageService {
   uploadFile(file: File): Promise<FileInfo>
   markAsRead(consultationId: string, messageIds: string[]): Promise<void>
   getTemplates(category?: string): Promise<MedicalTemplate[]>
+}
+
+// 问诊服务接口
+export interface ConsultationService {
+  getPendingConsultations(): Promise<Consultation[]>
+  getConsultationDetail(consultationId: string): Promise<Consultation>
+  acceptConsultation(consultationId: string): Promise<void>
+  completeConsultation(consultationId: string, summary?: string): Promise<void>
+  updateConsultationStatus(
+    consultationId: string,
+    status: ConsultationStatus
+  ): Promise<void>
+  getConsultationHistory(
+    doctorId: string,
+    page: number
+  ): Promise<{
+    consultations: Consultation[]
+    total: number
+    page: number
+  }>
 }
 
 // 消息状态管理

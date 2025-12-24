@@ -26,6 +26,10 @@ export const WorkspacePage: React.FC = () => {
     navigate('/patients')
   }
 
+  const handleNavigateToConsultations = () => {
+    navigate('/consultations')
+  }
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header
@@ -93,6 +97,7 @@ export const WorkspacePage: React.FC = () => {
                 justifyContent: 'center',
                 height: '100%',
               }}
+              onClick={handleNavigateToConsultations}
             >
               <MessageOutlined
                 style={{ fontSize: 48, color: '#52c41a', marginBottom: 16 }}

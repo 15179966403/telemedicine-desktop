@@ -5,6 +5,9 @@ export { MessageService } from './messageService'
 export { FileService } from './fileService'
 export { WindowService } from './windowService'
 
+// 问诊服务
+export { ConsultationService, consultationService } from './consultationService'
+
 // WebSocket 实时通信服务
 export { WebSocketService, webSocketService } from './webSocketService'
 export type { WebSocketConfig } from './webSocketService'

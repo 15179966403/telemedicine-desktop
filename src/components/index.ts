@@ -17,4 +17,9 @@ export {
 export { FileUploadComponent } from './FileUpload'
 export { FilePreviewComponent } from './FilePreview'
 
-// 这里将在后续任务中添加具体的组件导出
+// 问诊管理组件
+export * from './ConsultationList'
+export * from './ConsultationDetail'
+
+// 通用组件
+export { WebSocketStatus } from './WebSocketStatus'

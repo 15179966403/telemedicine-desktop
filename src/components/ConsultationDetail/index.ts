@@ -1,0 +1,1 @@
+export { ConsultationDetailDrawer } from './ConsultationDetailDrawer'

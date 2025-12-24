@@ -4,3 +4,6 @@ export { usePatients } from './usePatients'
 export { useMessages } from './useMessages'
 export { useWindows } from './useWindows'
 export { useNotifications } from './useNotifications'
+
+// 问诊相关 hooks
+export { useConsultations } from './useConsultations'

@@ -1,0 +1,142 @@
+.pending-consultation-list {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.list-header h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.error-message {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pending-consultation-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #666;
+}
+
+.consultation-card {
+  margin-bottom: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.consultation-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.consultation-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.consultation-description {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.patient-info {
+  display: flex;
+  align-items: center;
+}
+
+.consultation-content {
+  max-width: 100%;
+}
+
+.symptoms {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.attachments {
+  margin-top: 4px;
+}
+
+.consultation-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .pending-consultation-list {
+    padding: 12px;
+  }
+
+  .list-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .consultation-card .ant-card-meta-avatar {
+    margin-right: 12px;
+  }
+
+  .consultation-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* 优先级指示器 */
+.consultation-card[data-priority='urgent'] {
+  border-left: 4px solid #ff4d4f;
+}
+
+.consultation-card[data-priority='high'] {
+  border-left: 4px solid #fa8c16;
+}
+
+.consultation-card[data-priority='normal'] {
+  border-left: 4px solid #1890ff;
+}
+
+.consultation-card[data-priority='low'] {
+  border-left: 4px solid #d9d9d9;
+}
+
+/* 加载状态 */
+.ant-list-item .ant-card-loading-content {
+  padding: 16px;
+}
+
+/* 空状态 */
+.ant-empty {
+  margin: 40px 0;
+}

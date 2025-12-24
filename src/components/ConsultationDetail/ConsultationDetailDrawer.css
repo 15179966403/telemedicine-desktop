@@ -1,0 +1,136 @@
+.consultation-detail-drawer .ant-drawer-body {
+  padding: 0;
+}
+
+.consultation-detail-content {
+  padding: 24px;
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.section h4 {
+  margin-bottom: 16px;
+  color: #262626;
+  font-weight: 600;
+}
+
+.consultation-title h5 {
+  margin-bottom: 8px;
+  color: #1890ff;
+}
+
+.attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.attachment-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.attachment-item:hover {
+  border-color: #1890ff;
+  background: #f6ffed;
+}
+
+.image-attachment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-attachment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.attachment-name {
+  font-size: 12px;
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.attachment-size {
+  font-size: 11px;
+}
+
+.last-message {
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border-left: 4px solid #1890ff;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .consultation-detail-drawer {
+    width: 100% !important;
+  }
+
+  .consultation-detail-content {
+    padding: 16px;
+  }
+
+  .attachments-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+  }
+
+  .attachment-item {
+    padding: 8px;
+  }
+}
+
+/* 描述列表样式优化 */
+.ant-descriptions-bordered .ant-descriptions-item-label {
+  background: #fafafa;
+  font-weight: 500;
+}
+
+.ant-descriptions-bordered .ant-descriptions-item-content {
+  background: #fff;
+}
+
+/* 标签样式 */
+.ant-tag {
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* 头像和文本对齐 */
+.ant-space-item {
+  display: flex;
+  align-items: center;
+}
+
+/* 段落样式 */
+.ant-typography {
+  margin-bottom: 0;
+}
+
+.section .ant-typography p {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+/* 分割线样式 */
+.ant-divider {
+  margin: 24px 0;
+  border-color: #f0f0f0;
+}
