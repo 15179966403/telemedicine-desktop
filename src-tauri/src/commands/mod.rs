@@ -6,6 +6,7 @@ pub mod message;
 pub mod window;
 pub mod database;
 pub mod file;
+pub mod websocket;
 
 // 重新导出所有命令
 pub use auth::*;
@@ -14,3 +15,4 @@ pub use message::*;
 pub use window::*;
 pub use database::*;
 pub use file::*;
+pub use websocket::*;

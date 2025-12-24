@@ -33,6 +33,9 @@ aes-gcm = "0.10"
 argon2 = "0.5"
 regex = "1.0"
 base64 = "0.22"
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+url = "2.5"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -1,6 +1,6 @@
 // 消息服务
 
-use crate::models::Message;
+use crate::models::{Message, MessageType, SenderType, SyncStatus, ReadStatus};
 use anyhow::Result;
 
 pub struct MessageService;
@@ -31,22 +31,28 @@ impl MessageService {
             Message {
                 id: "msg-1".to_string(),
                 consultation_id: consultation_id.to_string(),
-                sender_type: crate::models::SenderType::Patient,
-                message_type: crate::models::MessageType::Text,
-                content: "医生您好，我最近感觉头痛".to_string(),
+                sender_type: SenderType::Patient,
+                message_type: MessageType::Text,
+                content: Some("医生您好，我最近感觉头痛".to_string()),
                 file_path: None,
+                file_size: None,
+                mime_type: None,
                 timestamp: chrono::Utc::now() - chrono::Duration::hours(2),
-                sync_status: crate::models::SyncStatus::Synced,
+                sync_status: SyncStatus::Synced,
+                read_status: ReadStatus::Read,
             },
             Message {
                 id: "msg-2".to_string(),
                 consultation_id: consultation_id.to_string(),
-                sender_type: crate::models::SenderType::Doctor,
-                message_type: crate::models::MessageType::Text,
-                content: "您好，请问头痛持续多长时间了？".to_string(),
+                sender_type: SenderType::Doctor,
+                message_type: MessageType::Text,
+                content: Some("您好，请问头痛持续多长时间了？".to_string()),
                 file_path: None,
+                file_size: None,
+                mime_type: None,
                 timestamp: chrono::Utc::now() - chrono::Duration::hours(2) + chrono::Duration::minutes(2),
-                sync_status: crate::models::SyncStatus::Synced,
+                sync_status: SyncStatus::Synced,
+                read_status: ReadStatus::Read,
             },
         ];
 

@@ -5,6 +5,10 @@ export { MessageService } from './messageService'
 export { FileService } from './fileService'
 export { WindowService } from './windowService'
 
+// WebSocket 实时通信服务
+export { WebSocketService, webSocketService } from './webSocketService'
+export type { WebSocketConfig } from './webSocketService'
+
 // 文件管理服务
 export { FileStorageService } from './fileStorageService'
 export { FileValidationService } from './fileValidationService'

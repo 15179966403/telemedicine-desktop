@@ -9,12 +9,17 @@ mod utils;
 
 use commands::*;
 use commands::window::WindowManagerState;
+use commands::websocket::WebSocketManagerState;
+use services::WebSocketManager;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(WindowManagerState::default())
+        .manage(Arc::new(Mutex::new(WebSocketManager::new())) as WebSocketManagerState)
         .invoke_handler(tauri::generate_handler![
             // 认证相关命令
             auth_login,
@@ -77,6 +82,17 @@ pub fn run() {
             // 数据库相关命令
             init_database,
             sync_data,
+
+            // WebSocket 相关命令
+            create_websocket_connection,
+            close_websocket_connection,
+            get_websocket_connection_status,
+            get_all_websocket_connections_status,
+            send_websocket_message,
+            subscribe_to_consultation,
+            unsubscribe_from_consultation,
+            send_read_receipt,
+            send_typing_status,
         ])
         .setup(|app| {
             // 初始化数据库

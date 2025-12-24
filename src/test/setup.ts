@@ -2,12 +2,29 @@ import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
 // Mock Tauri API
+const mockTauri = {
+  invoke: vi.fn(),
+  listen: vi.fn(),
+  emit: vi.fn(),
+}
+
+// Mock window.__TAURI__
+Object.defineProperty(window, '__TAURI__', {
+  value: mockTauri,
+  writable: true,
+})
+
 vi.mock('@tauri-apps/api/tauri', () => ({
   invoke: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+}))
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(),
+  emit: vi.fn(),
 }))
 
 // Mock antd message
@@ -22,28 +39,6 @@ vi.mock('antd', async () => {
       info: vi.fn(),
     },
   }
-})
-
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
-  log: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-}
-import { vi } from 'vitest'
-
-// Mock Tauri API
-const mockTauri = {
-  invoke: vi.fn(),
-  listen: vi.fn(),
-  emit: vi.fn(),
-}
-
-// Mock window.__TAURI__
-Object.defineProperty(window, '__TAURI__', {
-  value: mockTauri,
-  writable: true,
 })
 
 // Mock IntersectionObserver
@@ -112,6 +107,25 @@ Object.defineProperty(window, 'sessionStorage', {
 // Mock fetch
 Object.defineProperty(globalThis, 'fetch', {
   value: vi.fn(),
+})
+
+// Mock crypto for UUID generation
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    getRandomValues: vi.fn().mockImplementation((arr: Uint8Array) => {
+      for (let i = 0; i < arr.length; i++) {
+        arr[i] = Math.floor(Math.random() * 256)
+      }
+      return arr
+    }),
+    randomUUID: vi.fn().mockImplementation(() =>
+      'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0
+        const v = c === 'x' ? r : (r & 0x3) | 0x8
+        return v.toString(16)
+      })
+    ),
+  },
 })
 
 // Mock console methods to reduce noise in tests

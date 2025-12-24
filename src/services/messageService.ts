@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { webSocketService } from './webSocketService'
 import type {
   Message,
   MessageList,
@@ -13,12 +14,42 @@ export class MessageService {
   private subscribers: Map<string, MessageCallback[]> = new Map()
   private messageQueue: Map<string, SendMessageRequest[]> = new Map()
   private isOnline: boolean = true
+  private webSocketConnectionId: string | null = null
 
   static getInstance(): MessageService {
     if (!MessageService.instance) {
       MessageService.instance = new MessageService()
     }
     return MessageService.instance
+  }
+
+  // 初始化 WebSocket 连接
+  async initializeWebSocket(url: string, authToken?: string): Promise<void> {
+    try {
+      await webSocketService.initialize()
+
+      this.webSocketConnectionId = await webSocketService.createConnection({
+        url,
+        authToken,
+        autoReconnect: true,
+        reconnectAttempts: 5,
+        reconnectDelay: 2000,
+      })
+
+      console.log(
+        'WebSocket connection initialized:',
+        this.webSocketConnectionId
+      )
+    } catch (error) {
+      console.error('Failed to initialize WebSocket:', error)
+      throw error
+    }
+  }
+
+  // 获取 WebSocket 连接状态
+  getWebSocketStatus(): string {
+    if (!this.webSocketConnectionId) return 'disconnected'
+    return webSocketService.getConnectionStatus(this.webSocketConnectionId)
   }
 
   async sendMessage(
@@ -30,6 +61,33 @@ export class MessageService {
         consultationId,
         message,
       })
+
+      // 优先使用 WebSocket 发送
+      if (this.webSocketConnectionId && this.isOnline) {
+        try {
+          await webSocketService.sendMessage(
+            this.webSocketConnectionId,
+            consultationId,
+            message
+          )
+
+          // 构建返回的消息对象
+          const sentMessage: Message = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            consultationId,
+            type: message.type,
+            content: message.content,
+            sender: message.sender,
+            timestamp: new Date(),
+            status: 'sent',
+            fileInfo: message.fileInfo,
+          }
+
+          return sentMessage
+        } catch (wsError) {
+          console.warn('WebSocket send failed, falling back to Tauri:', wsError)
+        }
+      }
 
       // 构建发送请求
       const request: SendMessageRequest = {
@@ -141,7 +199,24 @@ export class MessageService {
     callbacks.push(callback)
     this.subscribers.set(consultationId, callbacks)
 
-    // 模拟实时消息接收
+    // 优先使用 WebSocket 订阅
+    let webSocketUnsubscribe: (() => void) | null = null
+    if (this.webSocketConnectionId) {
+      webSocketService
+        .subscribeToConsultation(
+          this.webSocketConnectionId,
+          consultationId,
+          callback
+        )
+        .then(unsubscribe => {
+          webSocketUnsubscribe = unsubscribe
+        })
+        .catch(error => {
+          console.warn('WebSocket subscription failed:', error)
+        })
+    }
+
+    // 模拟实时消息接收（备用机制）
     const interval = setInterval(() => {
       // 随机发送模拟消息
       if (Math.random() > 0.95) {
@@ -163,6 +238,12 @@ export class MessageService {
     // 返回取消订阅函数
     return () => {
       clearInterval(interval)
+
+      // 取消 WebSocket 订阅
+      if (webSocketUnsubscribe) {
+        webSocketUnsubscribe()
+      }
+
       const callbacks = this.subscribers.get(consultationId) || []
       const index = callbacks.indexOf(callback)
       if (index > -1) {
@@ -204,23 +285,87 @@ export class MessageService {
     }
   }
 
-  async markMessageAsRead(
+  // 发送已读回执
+  async sendReadReceipt(
     consultationId: string,
     messageId: string
   ): Promise<void> {
     try {
-      console.log('MessageService.markMessageAsRead called with:', {
+      console.log('MessageService.sendReadReceipt called with:', {
         consultationId,
         messageId,
       })
 
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // 优先使用 WebSocket 发送
+      if (this.webSocketConnectionId) {
+        try {
+          await webSocketService.sendReadReceipt(
+            this.webSocketConnectionId,
+            consultationId,
+            messageId
+          )
+          return
+        } catch (wsError) {
+          console.warn(
+            'WebSocket read receipt failed, falling back to Tauri:',
+            wsError
+          )
+        }
+      }
 
-      // TODO: 实现实际的已读标记逻辑
+      // 使用 Tauri 命令发送
+      await invoke('send_read_receipt', {
+        request: {
+          connection_id: this.webSocketConnectionId || 'default',
+          consultation_id: consultationId,
+          message_id: messageId,
+        },
+      })
     } catch (error) {
-      console.error('Mark message as read failed:', error)
-      // 标记已读失败不应该阻塞用户操作
+      console.error('Send read receipt failed:', error)
+      // 已读回执发送失败不应该阻塞用户操作
+    }
+  }
+
+  // 发送输入状态
+  async sendTypingStatus(
+    consultationId: string,
+    isTyping: boolean
+  ): Promise<void> {
+    try {
+      console.log('MessageService.sendTypingStatus called with:', {
+        consultationId,
+        isTyping,
+      })
+
+      // 优先使用 WebSocket 发送
+      if (this.webSocketConnectionId) {
+        try {
+          await webSocketService.sendTypingStatus(
+            this.webSocketConnectionId,
+            consultationId,
+            isTyping
+          )
+          return
+        } catch (wsError) {
+          console.warn(
+            'WebSocket typing status failed, falling back to Tauri:',
+            wsError
+          )
+        }
+      }
+
+      // 使用 Tauri 命令发送
+      await invoke('send_typing_status', {
+        request: {
+          connection_id: this.webSocketConnectionId || 'default',
+          consultation_id: consultationId,
+          is_typing: isTyping,
+        },
+      })
+    } catch (error) {
+      console.error('Send typing status failed:', error)
+      // 输入状态发送失败不应该阻塞用户操作
     }
   }
 
