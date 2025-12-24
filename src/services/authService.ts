@@ -15,6 +15,15 @@ export class AuthService {
     try {
       console.log('AuthService.login called with:', credentials)
 
+      // Mock credentials for testing (dev mode only)
+      if (import.meta.env.DEV) {
+        const isMockLogin = this.checkMockCredentials(credentials)
+        if (isMockLogin) {
+          console.log('Using mock credentials for testing')
+          return this.getMockAuthResult(credentials)
+        }
+      }
+
       // 调用 Tauri 命令进行认证
       const result = await invoke<{
         token: string
@@ -59,6 +68,47 @@ export class AuthService {
     }
   }
 
+  private checkMockCredentials(credentials: LoginCredentials): boolean {
+    // Password login
+    if (credentials.type === 'password') {
+      return (
+        credentials.username === 'test' && credentials.password === 'test123'
+      )
+    }
+    // SMS login
+    if (credentials.type === 'sms') {
+      return (
+        credentials.phone === '13800138000' && credentials.smsCode === '123456'
+      )
+    }
+    // Real name login
+    if (credentials.type === 'realname') {
+      return credentials.idCard === '110101199001011234'
+    }
+    return false
+  }
+
+  private getMockAuthResult(credentials: LoginCredentials): AuthResult {
+    const mockUser: User = {
+      id: 'mock-user-1',
+      username: credentials.username || 'test',
+      name: '测试医生',
+      phone: credentials.phone || '13800138000',
+      department: '内科',
+      title: '主治医师',
+      licenseNumber: 'DOC123456',
+      auditStatus: 'approved',
+      createdAt: new Date(),
+      lastLogin: new Date(),
+    }
+
+    return {
+      token: 'mock-token-' + Date.now(),
+      user: mockUser,
+      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8 hours
+    }
+  }
+
   async logout(): Promise<void> {
     try {
       console.log('AuthService.logout called')
@@ -90,6 +140,11 @@ export class AuthService {
   async validateSession(token: string): Promise<boolean> {
     try {
       console.log('AuthService.validateSession called')
+
+      // Mock token validation for testing (dev mode only)
+      if (import.meta.env.DEV && token.startsWith('mock-token-')) {
+        return true
+      }
 
       // 调用 Tauri 命令验证会话
       const isValid = await invoke<boolean>('auth_validate_session', {
