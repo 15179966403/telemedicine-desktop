@@ -10,13 +10,20 @@
     "tauri": "tauri",
     "dev:tauri": "tauri dev",
     "build:tauri": "tauri build",
+    "build:windows": "tauri build --target x86_64-pc-windows-msvc",
+    "build:macos": "tauri build --target x86_64-apple-darwin",
+    "build:macos-arm": "tauri build --target aarch64-apple-darwin",
+    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:all": "npm run build:windows && npm run build:macos && npm run build:linux",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext ts,tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "prebuild": "npm run lint && npm run test",
+    "postbuild": "node scripts/post-build.js"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",

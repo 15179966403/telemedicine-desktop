@@ -19,6 +19,7 @@ use tokio::sync::Mutex;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(WindowManagerState::default())
         .manage(Arc::new(Mutex::new(WebSocketManager::new())) as WebSocketManagerState)
         .manage(Arc::new(Mutex::new(SecurityService::new(300))) as SecurityServiceState) // 5分钟自动锁屏

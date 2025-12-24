@@ -1,103 +1,102 @@
-/**
- * React 错误边界组件
- * Error Boundary Component for catching React errors
- */
-
+// React 错误边界组件
 import React, { Component, ErrorInfo, ReactNode } from 'react'
-import { globalErrorHandler } from '@/utils/errorHandler'
-import type { AppError } from '@/types'
+import { crashReporter } from '../services/crashReporter'
 
 interface Props {
   children: ReactNode
-  fallback?: (error: AppError, reset: () => void) => ReactNode
-  onError?: (error: Error, errorInfo: ErrorInfo) => void
+  fallback?: ReactNode
 }
 
 interface State {
   hasError: boolean
-  error: AppError | null
+  error?: Error
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = {
-      hasError: false,
-      error: null,
-    }
+    this.state = { hasError: false }
   }
 
   static getDerivedStateFromError(error: Error): State {
-    const appError = globalErrorHandler.handle(error)
-    return {
-      hasError: true,
-      error: appError,
-    }
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // 记录错误信息
-    console.error('Error caught by boundary:', error, errorInfo)
+    console.error('React Error Boundary 捕获到错误:', error, errorInfo)
 
-    // 调用自定义错误处理
-    if (this.props.onError) {
-      this.props.onError(error, errorInfo)
-    }
+    // 发送崩溃报告
+    crashReporter.reportError(error, {
+      componentStack: errorInfo.componentStack,
+    })
 
-    // 全局错误处理
-    globalErrorHandler.handle(error)
+    // 触发自定义事件
+    window.dispatchEvent(
+      new CustomEvent('react-error', {
+        detail: { error, errorInfo },
+      })
+    )
   }
 
-  resetError = (): void => {
-    this.setState({
-      hasError: false,
-      error: null,
-    })
+  handleReset = (): void => {
+    this.setState({ hasError: false, error: undefined })
   }
 
   render(): ReactNode {
-    if (this.state.hasError && this.state.error) {
-      // 如果提供了自定义 fallback，使用它
+    if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback(this.state.error, this.resetError)
+        return this.props.fallback
       }
 
-      // 默认错误 UI
       return (
         <div
           style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100vh',
             padding: '20px',
-            margin: '20px',
-            border: '1px solid #f5222d',
-            borderRadius: '4px',
-            backgroundColor: '#fff2f0',
+            textAlign: 'center',
           }}
         >
-          <h2 style={{ color: '#f5222d', marginBottom: '10px' }}>
-            应用出现错误
-          </h2>
-          <p style={{ marginBottom: '10px' }}>
-            {this.state.error.message || '未知错误'}
+          <h1>应用遇到了一个错误</h1>
+          <p style={{ color: '#666', marginBottom: '20px' }}>
+            我们已经记录了这个错误，将尽快修复。
           </p>
-          {this.state.error.code && (
-            <p
-              style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}
-            >
-              错误代码: {this.state.error.code}
-            </p>
+          {this.state.error && (
+            <details style={{ marginBottom: '20px', textAlign: 'left' }}>
+              <summary style={{ cursor: 'pointer', marginBottom: '10px' }}>
+                错误详情
+              </summary>
+              <pre
+                style={{
+                  background: '#f5f5f5',
+                  padding: '10px',
+                  borderRadius: '4px',
+                  overflow: 'auto',
+                  maxWidth: '600px',
+                }}
+              >
+                {this.state.error.message}
+                {'\n\n'}
+                {this.state.error.stack}
+              </pre>
+            </details>
           )}
           <button
-            onClick={this.resetError}
+            onClick={this.handleReset}
             style={{
-              padding: '8px 16px',
-              backgroundColor: '#1890ff',
+              padding: '10px 20px',
+              fontSize: '16px',
+              cursor: 'pointer',
+              background: '#1890ff',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: 'pointer',
             }}
           >
-            重试
+            重新加载
           </button>
         </div>
       )
