@@ -25,3 +25,30 @@ export * from './windowPersistence'
 
 // 窗口资源管理服务
 export * from './windowResourceManager'
+
+// 离线功能服务
+export { OfflineService, offlineService } from './offlineService'
+export type {
+  OfflineDataItem,
+  SyncConflict,
+  OfflineConfig,
+} from './offlineService'
+
+// 网络状态检测服务
+export {
+  NetworkStatusService,
+  networkStatusService,
+} from './networkStatusService'
+export type {
+  NetworkStatus,
+  NetworkInfo,
+  NetworkStatusCallback,
+} from './networkStatusService'
+
+// 离线消息队列服务
+export { OfflineMessageQueue, offlineMessageQueue } from './offlineMessageQueue'
+export type {
+  QueuedMessage,
+  MessageSendResult,
+  QueueStats,
+} from './offlineMessageQueue'

@@ -23,3 +23,8 @@ export * from './ConsultationDetail'
 
 // 通用组件
 export { WebSocketStatus } from './WebSocketStatus'
+
+// 离线功能组件
+export * from './OfflineIndicator'
+export * from './SyncConflictResolver'
+export * from './OfflineQueueStatus'

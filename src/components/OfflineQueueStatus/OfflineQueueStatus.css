@@ -1,0 +1,205 @@
+/* 离线队列状态样式 */
+.offline-queue-status {
+  width: 100%;
+}
+
+.queue-status-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.queue-status-card .ant-card-head {
+  padding: 12px 16px;
+  min-height: auto;
+}
+
+.queue-status-card .ant-card-body {
+  padding: 16px;
+}
+
+.queue-status-content {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.queue-progress {
+  margin-bottom: 12px;
+}
+
+.queue-progress .ant-progress {
+  margin-bottom: 4px;
+}
+
+.queue-stats {
+  margin-bottom: 16px;
+}
+
+.queue-stats .ant-tag {
+  margin-bottom: 4px;
+  border-radius: 12px;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.queue-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.queue-actions .ant-btn {
+  border-radius: 6px;
+}
+
+/* 队列详情模态框样式 */
+.queue-modal-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.queue-modal-content .ant-list-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.queue-modal-content .ant-list-item:last-child {
+  border-bottom: none;
+}
+
+.queue-modal-content .ant-list-item-meta-avatar {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.queue-modal-content .ant-list-item-meta-content {
+  flex: 1;
+}
+
+.queue-modal-content .ant-list-item-action {
+  margin-left: 12px;
+}
+
+.queue-modal-content .ant-statistic {
+  text-align: center;
+}
+
+.queue-modal-content .ant-statistic-title {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.queue-modal-content .ant-statistic-content {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* 状态指示器 */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
+.status-indicator.pending {
+  background-color: rgba(250, 173, 20, 0.1);
+  color: #faad14;
+}
+
+.status-indicator.sending {
+  background-color: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
+}
+
+.status-indicator.sent {
+  background-color: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+}
+
+.status-indicator.failed {
+  background-color: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .queue-status-card .ant-card-head {
+    padding: 8px 12px;
+  }
+
+  .queue-status-card .ant-card-body {
+    padding: 12px;
+  }
+
+  .queue-stats .ant-tag {
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+
+  .queue-actions .ant-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+    height: auto;
+  }
+
+  .queue-modal-content .ant-statistic-content {
+    font-size: 16px;
+  }
+}
+
+/* 暗色主题适配 */
+.dark .queue-status-card {
+  background-color: #1f1f1f;
+  border-color: #434343;
+}
+
+.dark .queue-modal-content .ant-list-item {
+  border-bottom-color: #434343;
+}
+
+.dark .status-indicator.pending {
+  background-color: rgba(250, 173, 20, 0.2);
+}
+
+.dark .status-indicator.sending {
+  background-color: rgba(24, 144, 255, 0.2);
+}
+
+.dark .status-indicator.sent {
+  background-color: rgba(82, 196, 26, 0.2);
+}
+
+.dark .status-indicator.failed {
+  background-color: rgba(255, 77, 79, 0.2);
+}
+
+/* 动画效果 */
+.queue-progress .ant-progress-bg {
+  transition: width 0.3s ease;
+}
+
+.queue-stats .ant-tag {
+  transition: all 0.3s ease;
+}
+
+.queue-stats .ant-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 加载状态 */
+.queue-status-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+}
+
+.queue-status-loading .ant-spin {
+  font-size: 24px;
+}

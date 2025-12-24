@@ -1,0 +1,169 @@
+/* 同步冲突解决器样式 */
+.sync-conflict-resolver .ant-modal-body {
+  padding: 24px;
+}
+
+.conflict-resolver-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.data-comparison {
+  margin: 16px 0;
+}
+
+.comparison-header {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.comparison-content {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.comparison-section {
+  flex: 1;
+}
+
+.comparison-divider {
+  display: flex;
+  align-items: center;
+  height: 200px;
+}
+
+.local-data-card,
+.remote-data-card {
+  height: 100%;
+}
+
+.local-data-card .ant-card-head {
+  background-color: rgba(24, 144, 255, 0.05);
+}
+
+.remote-data-card .ant-card-head {
+  background-color: rgba(82, 196, 26, 0.05);
+}
+
+.conflict-field {
+  background-color: rgba(255, 193, 7, 0.1);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.conflict-field .ant-typography {
+  background-color: rgba(255, 193, 7, 0.2) !important;
+  border-color: #faad14 !important;
+}
+
+.resolution-options {
+  margin-top: 16px;
+}
+
+.resolution-radio-group {
+  width: 100%;
+}
+
+.resolution-radio-group .ant-radio-wrapper {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+
+.resolution-radio-group .ant-radio-wrapper:hover {
+  border-color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.02);
+}
+
+.resolution-radio-group .ant-radio-wrapper-checked {
+  border-color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.05);
+}
+
+.resolution-radio-group .ant-radio {
+  margin-top: 2px;
+}
+
+.resolution-radio-group .ant-space-item:last-child {
+  flex: 1;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .sync-conflict-resolver {
+    width: 95% !important;
+    max-width: none !important;
+  }
+
+  .comparison-content {
+    flex-direction: column;
+  }
+
+  .comparison-divider {
+    height: auto;
+    justify-content: center;
+  }
+
+  .comparison-divider .ant-divider-vertical {
+    display: none;
+  }
+
+  .comparison-divider::after {
+    content: '';
+    width: 100%;
+    height: 1px;
+    background-color: #d9d9d9;
+  }
+}
+
+/* 暗色主题适配 */
+.dark .comparison-header {
+  border-bottom-color: #434343;
+}
+
+.dark .local-data-card .ant-card-head {
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+.dark .remote-data-card .ant-card-head {
+  background-color: rgba(82, 196, 26, 0.1);
+}
+
+.dark .conflict-field {
+  background-color: rgba(255, 193, 7, 0.2);
+}
+
+.dark .resolution-radio-group .ant-radio-wrapper {
+  border-color: #434343;
+  background-color: #1f1f1f;
+}
+
+.dark .resolution-radio-group .ant-radio-wrapper:hover {
+  border-color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+.dark .resolution-radio-group .ant-radio-wrapper-checked {
+  background-color: rgba(24, 144, 255, 0.15);
+}
+
+/* 动画效果 */
+.conflict-field {
+  animation: highlight 2s ease-in-out;
+}
+
+@keyframes highlight {
+  0%,
+  100% {
+    background-color: rgba(255, 193, 7, 0.1);
+  }
+  50% {
+    background-color: rgba(255, 193, 7, 0.3);
+  }
+}

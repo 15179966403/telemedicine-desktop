@@ -1,0 +1,159 @@
+/* 离线指示器样式 */
+.offline-indicator {
+  position: relative;
+}
+
+.offline-indicator-simple {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.offline-indicator-simple.success {
+  color: #52c41a;
+  background-color: rgba(82, 196, 26, 0.1);
+}
+
+.offline-indicator-simple.error {
+  color: #ff4d4f;
+  background-color: rgba(255, 77, 79, 0.1);
+  animation: pulse-error 2s infinite;
+}
+
+.offline-indicator-simple.warning {
+  color: #faad14;
+  background-color: rgba(250, 173, 20, 0.1);
+  animation: pulse-warning 3s infinite;
+}
+
+.offline-indicator-simple.default {
+  color: #8c8c8c;
+  background-color: rgba(140, 140, 140, 0.1);
+}
+
+.offline-indicator-simple:hover {
+  transform: scale(1.1);
+}
+
+.offline-indicator-badge .ant-badge-count {
+  background-color: #ff4d4f;
+  border-color: #ff4d4f;
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+}
+
+.offline-indicator-detailed {
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.offline-indicator-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.offline-indicator-details .ant-typography {
+  font-size: 12px;
+  margin: 0;
+}
+
+.sync-button {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
+}
+
+.sync-button:hover {
+  color: #1890ff;
+}
+
+.sync-button:disabled {
+  color: #8c8c8c;
+}
+
+/* 尺寸变体 */
+.offline-indicator.size-small .offline-indicator-simple {
+  width: 20px;
+  height: 20px;
+}
+
+.offline-indicator.size-large .offline-indicator-simple {
+  width: 32px;
+  height: 32px;
+}
+
+.offline-indicator.size-large .offline-indicator-simple .anticon {
+  font-size: 16px;
+}
+
+/* 动画效果 */
+@keyframes pulse-error {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-warning {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* 暗色主题适配 */
+.dark .offline-indicator-detailed {
+  background: #1f1f1f;
+  border-color: #434343;
+  color: #fff;
+}
+
+.dark .offline-indicator-details {
+  border-top-color: #434343;
+}
+
+.dark .offline-indicator-simple.success {
+  background-color: rgba(82, 196, 26, 0.2);
+}
+
+.dark .offline-indicator-simple.error {
+  background-color: rgba(255, 77, 79, 0.2);
+}
+
+.dark .offline-indicator-simple.warning {
+  background-color: rgba(250, 173, 20, 0.2);
+}
+
+.dark .offline-indicator-simple.default {
+  background-color: rgba(140, 140, 140, 0.2);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .offline-indicator-detailed {
+    padding: 6px 8px;
+  }
+
+  .offline-indicator-details .ant-typography {
+    font-size: 11px;
+  }
+}

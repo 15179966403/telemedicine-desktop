@@ -12,6 +12,10 @@ export const STORAGE_KEYS = {
   WINDOW_STATE: 'window_state',
   PATIENT_CACHE: 'patient_cache',
   MESSAGE_CACHE: 'message_cache',
+  OFFLINE_QUEUE: 'offline_queue',
+  OFFLINE_MESSAGE_QUEUE: 'offline_message_queue',
+  SYNC_CONFLICTS: 'sync_conflicts',
+  NETWORK_STATUS: 'network_status',
 } as const
 
 // 窗口配置
@@ -120,4 +124,30 @@ export const WINDOW_TYPES = {
   CONSULTATION: 'consultation',
   PATIENT: 'patient',
   SETTINGS: 'settings',
+} as const
+
+// 离线功能配置
+export const OFFLINE_CONFIG = {
+  MAX_CACHE_SIZE: 100 * 1024 * 1024, // 100MB
+  MAX_RETRY_ATTEMPTS: 3,
+  SYNC_INTERVAL: 30000, // 30 seconds
+  NETWORK_CHECK_INTERVAL: 10000, // 10 seconds
+  CACHE_EXPIRATION: 24 * 60 * 60 * 1000, // 24 hours
+} as const
+
+// 网络状态
+export const NETWORK_STATUS = {
+  ONLINE: 'online',
+  OFFLINE: 'offline',
+  SLOW: 'slow',
+  UNSTABLE: 'unstable',
+} as const
+
+// 同步状态
+export const SYNC_STATUS = {
+  PENDING: 'pending',
+  SYNCING: 'syncing',
+  SYNCED: 'synced',
+  FAILED: 'failed',
+  CONFLICT: 'conflict',
 } as const

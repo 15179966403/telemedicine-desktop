@@ -8,3 +8,6 @@ export { useWebSocketStore } from './webSocketStore'
 
 // 问诊状态管理
 export { useConsultationStore } from './consultationStore'
+
+// 离线功能状态管理
+export { useOfflineStore } from './offlineStore'
