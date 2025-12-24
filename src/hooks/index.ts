@@ -7,3 +7,6 @@ export { useNotifications } from './useNotifications'
 
 // 问诊相关 hooks
 export { useConsultations } from './useConsultations'
+
+// 错误处理和撤销管理 hooks
+export { useUndoManager, useUndoKeyboardShortcuts } from './useUndoManager'

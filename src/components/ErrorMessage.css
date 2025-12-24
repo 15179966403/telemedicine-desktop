@@ -1,0 +1,126 @@
+/* 错误消息样式 */
+.error-message {
+  border: 1px solid #f5222d;
+  border-radius: 4px;
+  background-color: #fff2f0;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.error-message-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.error-message-icon {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.error-message-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  flex: 1;
+}
+
+.error-message-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #8c8c8c;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.3s;
+}
+
+.error-message-close:hover {
+  color: #262626;
+}
+
+.error-message-content {
+  margin-bottom: 12px;
+}
+
+.error-message-text {
+  color: #595959;
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.error-message-code {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin: 4px 0;
+  font-family: 'Courier New', monospace;
+}
+
+.error-message-details {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.error-message-details summary {
+  cursor: pointer;
+  color: #1890ff;
+  user-select: none;
+}
+
+.error-message-details pre {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 11px;
+}
+
+.error-message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.error-message-retry {
+  padding: 6px 16px;
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.error-message-retry:hover {
+  background-color: #40a9ff;
+}
+
+.error-message-retry:active {
+  background-color: #096dd9;
+}
+
+/* 内联错误样式 */
+.inline-error {
+  display: flex;
+  align-items: center;
+  color: #f5222d;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.inline-error-icon {
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+.inline-error-text {
+  line-height: 1.5;
+}
