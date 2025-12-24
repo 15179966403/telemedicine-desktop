@@ -140,12 +140,10 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       extra={<Button icon={<FileTextOutlined />}>新增病历</Button>}
     >
       {medicalHistory.length > 0 ? (
-        <Timeline>
-          {medicalHistory.map(record => (
-            <Timeline.Item
-              key={record.id}
-              dot={<MedicineBoxOutlined style={{ color: '#1890ff' }} />}
-            >
+        <Timeline
+          items={medicalHistory.map(record => ({
+            dot: <MedicineBoxOutlined style={{ color: '#1890ff' }} />,
+            children: (
               <div>
                 <Text strong>{record.diagnosis}</Text>
                 <br />
@@ -170,9 +168,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                   </div>
                 )}
               </div>
-            </Timeline.Item>
-          ))}
-        </Timeline>
+            ),
+          }))}
+        />
       ) : (
         <Empty
           description="暂无病历记录"
@@ -185,12 +183,10 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const renderConsultationHistory = () => (
     <Card title="问诊记录">
       {consultationHistory.length > 0 ? (
-        <Timeline>
-          {consultationHistory.map(consultation => (
-            <Timeline.Item
-              key={consultation.id}
-              color={consultation.status === 'completed' ? 'green' : 'blue'}
-            >
+        <Timeline
+          items={consultationHistory.map(consultation => ({
+            color: consultation.status === 'completed' ? 'green' : 'blue',
+            children: (
               <div>
                 <Space>
                   <Text strong>{consultation.diagnosis || '问诊咨询'}</Text>
@@ -239,9 +235,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                   </>
                 )}
               </div>
-            </Timeline.Item>
-          ))}
-        </Timeline>
+            ),
+          }))}
+        />
       ) : (
         <Empty
           description="暂无问诊记录"
@@ -258,7 +254,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       onClose={onClose}
       open={visible}
       width={600}
-      bodyStyle={{ padding: 0 }}
+      styles={{ body: { padding: 0 } }}
     >
       <Spin spinning={loading}>
         <div style={{ padding: '24px' }}>

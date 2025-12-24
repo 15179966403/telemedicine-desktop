@@ -1,5 +1,23 @@
-import { invoke } from '@tauri-apps/api/core'
 import type { Consultation, ConsultationStatus } from '@/types'
+
+// Safe invoke wrapper that checks if Tauri is available
+const safeInvoke = async <T>(
+  command: string,
+  args?: Record<string, unknown>
+): Promise<T> => {
+  // Check if we're in a Tauri environment
+  if (typeof window !== 'undefined' && '__TAURI__' in window) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return await invoke<T>(command, args)
+    } catch (error) {
+      console.error(`Tauri invoke failed for ${command}:`, error)
+      throw error
+    }
+  }
+  // Running in web mode - silently fall back to mock data
+  throw new Error('Running in development mode')
+}
 
 export class ConsultationService {
   private static instance: ConsultationService
@@ -16,7 +34,7 @@ export class ConsultationService {
     try {
       console.log('ConsultationService.getPendingConsultations called')
 
-      const result = await invoke<any>('get_pending_consultations')
+      const result = await safeInvoke<any>('get_pending_consultations')
 
       // 转换数据格式
       const consultations: Consultation[] = result.map((item: any) => ({
@@ -55,9 +73,7 @@ export class ConsultationService {
 
       return consultations
     } catch (error) {
-      console.error('Get pending consultations failed:', error)
-
-      // 返回模拟数据用于开发测试
+      // Silently return mock data in development mode
       return this.getMockPendingConsultations()
     }
   }
@@ -70,7 +86,7 @@ export class ConsultationService {
         consultationId
       )
 
-      const result = await invoke<any>('get_consultation_detail', {
+      const result = await safeInvoke<unknown>('get_consultation_detail', {
         consultationId,
       })
 
@@ -110,9 +126,7 @@ export class ConsultationService {
 
       return consultation
     } catch (error) {
-      console.error('Get consultation detail failed:', error)
-
-      // 返回模拟数据用于开发测试
+      // Silently return mock data in development mode
       return this.getMockConsultationDetail(consultationId)
     }
   }
@@ -125,7 +139,7 @@ export class ConsultationService {
         consultationId
       )
 
-      await invoke('accept_consultation', { consultationId })
+      await safeInvoke('accept_consultation', { consultationId })
     } catch (error) {
       console.error('Accept consultation failed:', error)
       throw new Error('接受问诊失败')
@@ -143,7 +157,7 @@ export class ConsultationService {
         summary,
       })
 
-      await invoke('complete_consultation', {
+      await safeInvoke('complete_consultation', {
         consultationId,
         summary: summary || '',
       })
@@ -164,7 +178,7 @@ export class ConsultationService {
         status,
       })
 
-      await invoke('update_consultation_status', { consultationId, status })
+      await safeInvoke('update_consultation_status', { consultationId, status })
     } catch (error) {
       console.error('Update consultation status failed:', error)
       throw new Error('更新问诊状态失败')
@@ -188,14 +202,14 @@ export class ConsultationService {
         limit,
       })
 
-      const result = await invoke<any>('get_consultation_history', {
+      const result = await safeInvoke<unknown>('get_consultation_history', {
         doctorId,
         page,
         limit,
       })
 
       const consultations: Consultation[] = result.consultations.map(
-        (item: any) => ({
+        (item: unknown) => ({
           id: item.id,
           patientId: item.patient_id,
           patientName: item.patient_name,

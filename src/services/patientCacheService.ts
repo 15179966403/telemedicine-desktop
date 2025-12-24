@@ -274,7 +274,8 @@ export class PatientCacheService {
       page: query.page || 1,
       pageSize: query.pageSize || 20,
     })
-    return `${this.CACHE_PREFIX}_list_${btoa(queryStr)}`
+    // Use encodeURIComponent instead of btoa to handle Unicode characters
+    return `${this.CACHE_PREFIX}_list_${encodeURIComponent(queryStr)}`
   }
 
   private generatePatientCacheKey(patientId: string): string {
@@ -285,7 +286,7 @@ export class PatientCacheService {
     return `${this.CACHE_PREFIX}_detail_${patientId}`
   }
 
-  private isValidCache(cached: any): boolean {
+  private isValidCache(cached: unknown): boolean {
     return cached && cached.expiry && cached.expiry > Date.now() && cached.data
   }
 

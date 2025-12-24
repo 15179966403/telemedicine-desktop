@@ -198,7 +198,8 @@ export function usePatients() {
     if (patients.length === 0) {
       loadPatients()
     }
-  }, [loadPatients, patients.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     // 状态
