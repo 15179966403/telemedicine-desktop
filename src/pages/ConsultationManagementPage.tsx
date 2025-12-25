@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons'
 import { PendingConsultationList } from '@/components/ConsultationList/PendingConsultationList'
 import { ConsultationDetailDrawer } from '@/components/ConsultationDetail/ConsultationDetailDrawer'
+import { BackButton } from '@/components/BackButton'
 import { useConsultationStore } from '@/stores/consultationStore'
 import type { Consultation } from '@/types'
 
@@ -44,7 +45,8 @@ export const ConsultationManagementPage: React.FC = () => {
           alignItems: 'center',
         }}
       >
-        <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+        <BackButton to="/workspace" />
+        <Title level={4} style={{ margin: '0 0 0 16px', color: '#1890ff' }}>
           问诊管理
         </Title>
       </Header>

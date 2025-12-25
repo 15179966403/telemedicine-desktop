@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Layout, Typography, Spin, message as antMessage } from 'antd'
 import { ChatInterface } from '@/components/ChatInterface'
+import { BackButton } from '@/components/BackButton'
 import { useConsultationStore } from '@/stores/consultationStore'
 import type { Consultation } from '@/types'
 
-const { Content } = Layout
+const { Header, Content } = Layout
 const { Title } = Typography
 
 export const ConsultationPage: React.FC = () => {
@@ -85,7 +86,20 @@ export const ConsultationPage: React.FC = () => {
 
   return (
     <Layout style={{ height: '100vh' }}>
-      <Content style={{ padding: 0 }}>
+      <Header
+        style={{
+          background: '#fff',
+          padding: '0 16px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          height: '48px',
+          lineHeight: '48px',
+        }}
+      >
+        <BackButton to="/consultations" />
+      </Header>
+      <Content style={{ padding: 0, height: 'calc(100vh - 48px)' }}>
         <ChatInterface
           consultationId={consultation.id}
           patientName={consultation.patientName}

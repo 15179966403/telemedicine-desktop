@@ -29,10 +29,11 @@ import {
 import { usePatients } from '@/hooks'
 import { PatientDetailDrawer } from '@/components/PatientDetailDrawer'
 import { PatientTagManager } from '@/components/PatientTagManager'
+import { BackButton } from '@/components/BackButton'
 import type { Patient } from '@/types'
 import type { ColumnsType } from 'antd/es/table'
 
-const { Content } = Layout
+const { Header, Content } = Layout
 const { Title, Text } = Typography
 const { Option } = Select
 const { RangePicker } = DatePicker
@@ -170,14 +171,24 @@ export const PatientListPage: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#f5f5f5' }}>
+      <Header
+        style={{
+          background: '#fff',
+          padding: '0 24px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        <BackButton to="/workspace" />
+        <Title level={4} style={{ margin: '0 0 0 16px', color: '#1890ff' }}>
+          患者管理
+        </Title>
+      </Header>
       <Content style={{ padding: '24px' }}>
         <Card>
           <Row gutter={[16, 16]} align="middle">
-            <Col flex="auto">
-              <Title level={4} style={{ margin: 0 }}>
-                患者管理
-              </Title>
-            </Col>
+            <Col flex="auto"></Col>
             <Col>
               <Space>
                 <Button
