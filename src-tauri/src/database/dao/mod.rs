@@ -24,11 +24,11 @@ pub trait BaseDao<T>
 where
     T: Debug + Clone,
 {
-    fn create(&self, entity: &T) -> Result<String, String>;
-    fn find_by_id(&self, id: &str) -> Result<Option<T>, String>;
-    fn update(&self, entity: &T) -> Result<(), String>;
-    fn delete(&self, id: &str) -> Result<(), String>;
-    fn find_all(&self) -> Result<Vec<T>, String>;
+    fn create(&self, entity: &T) -> Result<String, Box<dyn std::error::Error>>;
+    fn find_by_id(&self, id: &str) -> Result<Option<T>, Box<dyn std::error::Error>>;
+    fn update(&self, entity: &T) -> Result<(), Box<dyn std::error::Error>>;
+    fn delete(&self, id: &str) -> Result<(), Box<dyn std::error::Error>>;
+    fn find_all(&self) -> Result<Vec<T>, Box<dyn std::error::Error>>;
 }
 
 // 分页查询结果

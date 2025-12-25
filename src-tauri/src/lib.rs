@@ -19,7 +19,6 @@ use tokio::sync::Mutex;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(WindowManagerState::default())
         .manage(Arc::new(Mutex::new(WebSocketManager::new())) as WebSocketManagerState)
         .manage(Arc::new(Mutex::new(SecurityService::new(300))) as SecurityServiceState) // 5分钟自动锁屏
@@ -113,7 +112,7 @@ pub fn run() {
         ])
         .setup(|app| {
             // 初始化数据库
-            let app_handle = app.handle();
+            let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = database::init_database(&app_handle).await {
                     eprintln!("Failed to initialize database: {}", e);

@@ -206,7 +206,7 @@ pub struct MessageStats {
 }
 
 impl BaseDao<Message> for MessageDao {
-    fn create(&self, message: &Message) -> Result<String, String> {
+    fn create(&self, message: &Message) -> Result<String, Box<dyn std::error::Error>> {
         let conn = self.connection.lock().unwrap();
         let id = Uuid::new_v4().to_string();
 
@@ -226,17 +226,17 @@ impl BaseDao<Message> for MessageDao {
                 message.sync_status,
                 message.read_status
             ],
-        ).map_err(|e| e.to_string())?;
+        )?;
 
         Ok(id)
     }
 
-    fn find_by_id(&self, id: &str) -> Result<Option<Message>, String> {
+    fn find_by_id(&self, id: &str) -> Result<Option<Message>, Box<dyn std::error::Error>> {
         let conn = self.connection.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, consultation_id, sender_type, message_type, content, file_path, file_size, mime_type, timestamp, sync_status, read_status
              FROM messages WHERE id = ?1"
-        ).map_err(|e| e.to_string())?;
+        )?;
 
         let message_result = stmt.query_row(params![id], |row| {
             Ok(Message {
@@ -257,11 +257,11 @@ impl BaseDao<Message> for MessageDao {
         match message_result {
             Ok(message) => Ok(Some(message)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(Box::new(e)),
         }
     }
 
-    fn update(&self, message: &Message) -> Result<(), String> {
+    fn update(&self, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self.connection.lock().unwrap();
 
         conn.execute(
@@ -281,24 +281,23 @@ impl BaseDao<Message> for MessageDao {
                 message.read_status,
                 message.id
             ],
-        ).map_err(|e| e.to_string())?;
+        )?;
 
         Ok(())
     }
 
-    fn delete(&self, id: &str) -> Result<(), String> {
+    fn delete(&self, id: &str) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self.connection.lock().unwrap();
-        conn.execute("DELETE FROM messages WHERE id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM messages WHERE id = ?1", params![id])?;
         Ok(())
     }
 
-    fn find_all(&self) -> Result<Vec<Message>, String> {
+    fn find_all(&self) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
         let conn = self.connection.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, consultation_id, sender_type, message_type, content, file_path, file_size, mime_type, timestamp, sync_status, read_status
              FROM messages ORDER BY timestamp DESC"
-        ).map_err(|e| e.to_string())?;
+        )?;
 
         let message_iter = stmt.query_map([], |row| {
             Ok(Message {
@@ -314,11 +313,11 @@ impl BaseDao<Message> for MessageDao {
                 sync_status: row.get(9)?,
                 read_status: row.get(10)?,
             })
-        }).map_err(|e| e.to_string())?;
+        })?;
 
         let mut messages = Vec::new();
         for message in message_iter {
-            messages.push(message.map_err(|e| e.to_string())?);
+            messages.push(message?);
         }
 
         Ok(messages)

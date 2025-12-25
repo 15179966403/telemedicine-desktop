@@ -42,6 +42,11 @@
       "menuOnLeftClick": false
     }
   },
+  "plugins": {
+    "updater": {
+      "active": false
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

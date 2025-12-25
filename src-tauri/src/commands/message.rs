@@ -81,7 +81,7 @@ pub async fn send_message(request: SendMessageRequest) -> Result<Message, String
     };
 
     // 保存到本地数据库
-    let create_result = message_dao.create(&message_model);
+    let create_result = message_dao.create(&message_model).map_err(|e| e.to_string());
 
     match create_result {
         Ok(_) => {
