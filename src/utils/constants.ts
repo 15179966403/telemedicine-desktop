@@ -1,13 +1,19 @@
 // 应用常量定义
 
-// API 相关
-export const API_BASE_URL = 'https://api.telemedicine.com'
-export const WS_BASE_URL = 'wss://ws.telemedicine.com'
+// API 相关（对接后台系统）
+export const API_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
+  'http://test.admin.lianhaojiankang.com'
+
+export const WS_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_BASE_URL) ||
+  'ws://test.admin.lianhaojiankang.com/websocket/message'
 
 // 本地存储键名
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   USER_INFO: 'user_info',
+  REMEMBERED_USERNAME: 'telemedicine_remembered_username',
   THEME: 'theme',
   WINDOW_STATE: 'window_state',
   PATIENT_CACHE: 'patient_cache',

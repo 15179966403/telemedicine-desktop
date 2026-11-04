@@ -1,20 +1,23 @@
-import type { Patient } from '@/types'
+import type {
+  Patient,
+  PatientQuery,
+  PatientList,
+  CustomerRecord,
+  CustomerQueryParams,
+  CustomerPageResult,
+  ServiceRecord,
+  ServiceRecordQueryParams,
+  ServiceRecordPageResult,
+  AppointmentRecord,
+  AppointmentQueryParams,
+  MedicalReport,
+} from '@/types'
 import { PatientCacheService } from './patientCacheService'
+import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants'
+import { useAuthStore } from '@/stores/authStore'
+import { StorageService } from '@/utils/storage'
 
-export interface PatientQuery {
-  page?: number
-  limit?: number
-  search?: string
-  tags?: string[]
-  dateRange?: [Date, Date]
-}
-
-export interface PatientList {
-  patients: Patient[]
-  total: number
-  page: number
-  limit: number
-}
+const LOCAL_APPOINTMENTS_KEY = 'telemedicine_doctor_local_appointments'
 
 export class PatientService {
   private static instance: PatientService
@@ -31,278 +34,505 @@ export class PatientService {
     return PatientService.instance
   }
 
-  async getPatientList(query: PatientQuery = {}): Promise<PatientList> {
-    try {
-      console.log('PatientService.getPatientList called with:', query)
-
-      // 尝试从缓存获取数据
-      const cached = await this.cacheService.getCachedPatientList(query)
-      if (cached) {
-        console.log('Returning cached patient list')
-        return cached
-      }
-
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 800))
-
-      // 模拟患者数据
-      const mockPatients: Patient[] = [
-        {
-          id: '1',
-          name: '李小明',
-          age: 35,
-          gender: 'male',
-          phone: '138****1234',
-          tags: ['高血压', '糖尿病'],
-          lastVisit: new Date('2024-01-15'),
-          medicalHistory: [],
-          createdAt: new Date('2024-01-01'),
-          updatedAt: new Date('2024-01-15'),
-        },
-        {
-          id: '2',
-          name: '王小红',
-          age: 28,
-          gender: 'female',
-          phone: '139****5678',
-          tags: ['孕期检查'],
-          lastVisit: new Date('2024-01-20'),
-          medicalHistory: [],
-          createdAt: new Date('2024-01-02'),
-          updatedAt: new Date('2024-01-20'),
-        },
-        {
-          id: '3',
-          name: '张大伟',
-          age: 45,
-          gender: 'male',
-          phone: '137****9012',
-          tags: ['心脏病', '高血压'],
-          lastVisit: new Date('2024-01-18'),
-          medicalHistory: [],
-          createdAt: new Date('2024-01-03'),
-          updatedAt: new Date('2024-01-18'),
-        },
-        {
-          id: '4',
-          name: '刘美丽',
-          age: 32,
-          gender: 'female',
-          phone: '136****3456',
-          tags: ['过敏', '哮喘'],
-          lastVisit: new Date('2024-01-22'),
-          medicalHistory: [],
-          createdAt: new Date('2024-01-04'),
-          updatedAt: new Date('2024-01-22'),
-        },
-      ]
-
-      const result = {
-        patients: mockPatients,
-        total: mockPatients.length,
-        page: query.page || 1,
-        limit: query.limit || 20,
-      }
-
-      // 缓存结果
-      await this.cacheService.cachePatientList(query, result)
-
-      return result
-    } catch (error) {
-      console.error('Get patient list failed:', error)
-      throw new Error('获取患者列表失败')
+  /**
+   * 获取鉴权 Headers
+   */
+  private getAuthHeaders(): Record<string, string> {
+    let token = ''
+    if (typeof window !== 'undefined') {
+      token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || ''
     }
+    if (!token) {
+      token = useAuthStore.getState().token || ''
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json;charset=utf-8',
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    return headers
   }
 
-  async getPatientDetail(patientId: string): Promise<Patient> {
+  /**
+   * 1. 获取客户主列表（对接后台 /admin/peCustomer/pageQueryList）
+   */
+  async fetchCustomerList(
+    params: CustomerQueryParams = { pageNum: 1, pageSize: 20 }
+  ): Promise<CustomerPageResult> {
     try {
-      console.log('PatientService.getPatientDetail called with:', patientId)
-
-      // 尝试从缓存获取数据
-      const cached = await this.cacheService.getCachedPatient(patientId)
-      if (cached) {
-        console.log('Returning cached patient detail')
-        return cached
+      // 过滤空值
+      const payload: Record<string, any> = {}
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== '' && value !== undefined && value !== null) {
+          payload[key] = value
+        }
       }
 
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 500))
-
-      // 模拟患者详情数据
-      const mockPatient: Patient = {
-        id: patientId,
-        name: '李小明',
-        age: 35,
-        gender: 'male',
-        phone: '138****1234',
-        tags: ['高血压', '糖尿病'],
-        lastVisit: new Date('2024-01-15'),
-        medicalHistory: [
-          {
-            id: '1',
-            patientId,
-            consultationId: 'cons_1',
-            diagnosis: '高血压',
-            symptoms: ['头痛', '头晕'],
-            prescription: [
-              {
-                id: 'med_1',
-                medicationName: '氨氯地平片',
-                dosage: '5mg',
-                frequency: '每日一次',
-                duration: '30天',
-                instructions: '餐后服用',
-              },
-            ],
-            examinations: [],
-            doctorId: 'doc_1',
-            doctorName: '张医生',
-            createdAt: new Date('2024-01-10'),
-          },
-        ],
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-15'),
-      }
-
-      // 缓存结果
-      await this.cacheService.cachePatient(mockPatient)
-
-      return mockPatient
-    } catch (error) {
-      console.error('Get patient detail failed:', error)
-      throw new Error('获取患者详情失败')
-    }
-  }
-
-  async updatePatientTags(patientId: string, tags: string[]): Promise<void> {
-    try {
-      console.log('PatientService.updatePatientTags called with:', {
-        patientId,
-        tags,
+      const res = await fetch(`${API_BASE_URL}/admin/peCustomer/pageQueryList`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload),
       })
 
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 300))
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 || data.code === undefined) {
+          const result: CustomerPageResult = {
+            code: 200,
+            msg: data.msg || 'success',
+            rows: data.rows || data.data || [],
+            total: data.total || (data.rows ? data.rows.length : 0),
+          }
+          // 异步缓存
+          this.cacheService.cacheCustomerList(params, result).catch(err => {
+            console.warn('Cache customer list error:', err)
+          })
+          return result
+        }
+      }
 
-      // 更新缓存
-      await this.cacheService.updatePatientCache(patientId, { tags })
-
-      console.log('Patient tags updated successfully')
+      console.warn(`Customer API returned HTTP ${res.status}, using cache fallback`)
+      const cached = await this.cacheService.getCachedCustomerList(params)
+      if (cached) return cached
+      throw new Error(`获取客户列表失败: HTTP ${res.status}`)
     } catch (error) {
-      console.error('Update patient tags failed:', error)
-      throw new Error('更新患者标签失败')
+      console.error('fetchCustomerList error:', error)
+      const cached = await this.cacheService.getCachedCustomerList(params)
+      if (cached) return cached
+      throw error instanceof Error ? error : new Error('获取客户列表失败')
     }
+  }
+
+  /**
+   * 2. 获取服务记录与到期提醒（对接后台 /admin/peServiceRecord/pageList）
+   */
+  async fetchServiceRecordList(
+    params: ServiceRecordQueryParams = { pageNum: 1, pageSize: 20 }
+  ): Promise<ServiceRecordPageResult> {
+    try {
+      const payload: Record<string, any> = {}
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== '' && value !== undefined && value !== null) {
+          payload[key] = value
+        }
+      }
+
+      // 对齐后台管理系统格式：status 在后台对应多选，必须为数组格式，如 [2], [3], [4]
+      if (payload.status !== undefined && !Array.isArray(payload.status)) {
+        payload.status = [payload.status]
+      }
+
+      const res = await fetch(`${API_BASE_URL}/admin/peServiceRecord/pageList`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 || data.code === undefined) {
+          const rawRows: ServiceRecord[] = data.rows || data.data || []
+          const result: ServiceRecordPageResult = {
+            code: 200,
+            msg: data.msg || 'success',
+            rows: rawRows,
+            total: data.total || (data.rows ? data.rows.length : 0),
+          }
+          this.cacheService.cacheServiceRecordList(params, result).catch(err => {
+            console.warn('Cache service records error:', err)
+          })
+          return result
+        }
+      }
+
+      console.warn(`ServiceRecord API returned HTTP ${res.status}, using cache fallback`)
+      const cached = await this.cacheService.getCachedServiceRecordList(params)
+      if (cached) return this.filterLocalServiceRecords(cached, params)
+      throw new Error(`获取服务记录列表失败: HTTP ${res.status}`)
+    } catch (error) {
+      console.error('fetchServiceRecordList error:', error)
+      const cached = await this.cacheService.getCachedServiceRecordList(params)
+      if (cached) return this.filterLocalServiceRecords(cached, params)
+      throw error instanceof Error ? error : new Error('获取服务记录失败')
+    }
+  }
+
+  private filterLocalServiceRecords(
+    data: ServiceRecordPageResult,
+    params: ServiceRecordQueryParams
+  ): ServiceRecordPageResult {
+    let rows = [...data.rows]
+    if (params.status !== undefined) {
+      const statusArr = Array.isArray(params.status) ? params.status : [params.status]
+      if (statusArr.length > 0) {
+        rows = rows.filter(r => statusArr.includes(r.status))
+      }
+    }
+    if (params.isSelect === 1) {
+      rows = rows.filter(r => {
+        const days = Number(r.remainingDays)
+        return r.status === 3 && !isNaN(days) && days >= 0 && days <= 30
+      })
+    }
+    if (params.userName) {
+      const name = params.userName.toLowerCase()
+      rows = rows.filter(r => r.userName?.toLowerCase().includes(name))
+    }
+    if (params.mobile) {
+      rows = rows.filter(r => r.mobile?.includes(params.mobile!))
+    }
+    if (params.codeType !== undefined && params.codeType !== '') {
+      rows = rows.filter(r => String(r.codeType) === String(params.codeType))
+    }
+    if (params.recordsType !== undefined && params.recordsType !== '') {
+      rows = rows.filter(r => String(r.recordsType) === String(params.recordsType))
+    }
+    return {
+      code: 200,
+      rows,
+      total: rows.length,
+    }
+  }
+
+  /**
+   * 3. 获取客户完整档案（客户基本信息 + 预约记录 + 健康标识）
+   */
+  async fetchCustomerProfile(params: {
+    id?: string | number
+    customerId?: string | number
+    mobile?: string
+  }): Promise<{
+    customer: CustomerRecord | null
+    reservations: AppointmentRecord[]
+  }> {
+    try {
+      const queryPayload: Record<string, any> = { pageNum: 1, pageSize: 10 }
+      if (params.id != null) queryPayload.id = params.id
+      if (params.customerId != null) queryPayload.customerId = params.customerId
+      if (params.mobile) queryPayload.mobile = params.mobile
+
+      const [customerRes, reservationRes] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/admin/peCustomer/pageQueryList`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(queryPayload),
+        }).then(r => r.json()),
+        params.mobile
+          ? fetch(`${API_BASE_URL}/admin/peReservationRecords/pageQueryList`, {
+              method: 'POST',
+              headers: this.getAuthHeaders(),
+              body: JSON.stringify({
+                mobile: params.mobile,
+                pageNum: 1,
+                pageSize: 50,
+              }),
+            }).then(r => r.json())
+          : Promise.resolve({ rows: [] }),
+      ])
+
+      let customer: CustomerRecord | null = null
+      if (
+        customerRes.status === 'fulfilled' &&
+        customerRes.value?.code === 200 &&
+        customerRes.value?.rows?.length > 0
+      ) {
+        customer = customerRes.value.rows[0]
+      }
+
+      let reservations: AppointmentRecord[] = []
+      if (
+        reservationRes.status === 'fulfilled' &&
+        reservationRes.value?.code === 200 &&
+        reservationRes.value?.rows
+      ) {
+        reservations = reservationRes.value.rows
+      }
+
+      // 如果后台接口未返回且有本地缓存
+      if (!customer && params.id != null) {
+        customer = await this.cacheService.getCachedCustomerDetail(params.id)
+      }
+
+      return { customer, reservations }
+    } catch (error) {
+      console.error('fetchCustomerProfile error:', error)
+      if (params.id != null) {
+        const cached = await this.cacheService.getCachedCustomerDetail(params.id)
+        if (cached) return { customer: cached, reservations: [] }
+      }
+      throw error instanceof Error ? error : new Error('获取客户详情失败')
+    }
+  }
+
+  /**
+   * 4. 获取客户体检报告列表（对接后台 POST /admin/peCustomer/reportPageList）
+   * 参考 VIPCustomersPreView.vue 中的 reqIndicatorsReportAll
+   */
+  async fetchCustomerReports(customerId: string | number): Promise<MedicalReport[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/peCustomer/reportPageList`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          customerId,
+          pageNum: 1,
+          pageSize: 999,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 || data.code === undefined) {
+          const rows: MedicalReport[] = data.rows || data.data || []
+          return rows
+        }
+      }
+
+      console.warn(`Report API returned HTTP ${res.status}`)
+      return []
+    } catch (error) {
+      console.warn('fetchCustomerReports error:', error)
+      return []
+    }
+  }
+
+  /**
+   * 5. 获取服务器预约记录（/admin/peReservationRecords/pageQueryList）
+   */
+  async fetchReservationList(
+    params: AppointmentQueryParams = { pageNum: 1, pageSize: 50 }
+  ): Promise<{ rows: AppointmentRecord[]; total: number }> {
+    try {
+      const payload: Record<string, any> = {}
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== '' && value !== undefined && value !== null) {
+          payload[key] = value
+        }
+      }
+
+      const res = await fetch(
+        `${API_BASE_URL}/admin/peReservationRecords/pageQueryList`,
+        {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload),
+        }
+      )
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 || data.code === undefined) {
+          return {
+            rows: data.rows || data.data || [],
+            total: data.total || 0,
+          }
+        }
+      }
+
+      return { rows: [], total: 0 }
+    } catch (error) {
+      console.warn('fetchReservationList failed, returning empty:', error)
+      return { rows: [], total: 0 }
+    }
+  }
+
+  /**
+   * 5. 医生本地离线日程与预约便签（替代纸质记事本）
+   */
+  async getLocalAppointments(): Promise<AppointmentRecord[]> {
+    try {
+      const list = (await StorageService.getItem(
+        LOCAL_APPOINTMENTS_KEY
+      )) as AppointmentRecord[]
+      return list || []
+    } catch (error) {
+      console.error('getLocalAppointments error:', error)
+      return []
+    }
+  }
+
+  async saveLocalAppointment(
+    record: Partial<AppointmentRecord>
+  ): Promise<AppointmentRecord> {
+    try {
+      const existing = await this.getLocalAppointments()
+      const now = new Date().toISOString()
+      const rawId = record.id != null ? record.id : `local_${Date.now()}`
+
+      const newRecord: AppointmentRecord = {
+        userName: record.userName || '客户',
+        mobile: record.mobile || '',
+        reservationDate:
+          record.reservationDate || now.split('T')[0],
+        startTime: record.startTime || '09:00',
+        endTime: record.endTime || '09:30',
+        reservationType: record.reservationType || 3,
+        reservationTypeName: record.reservationTypeName || '随访复查',
+        status: record.status ?? 0,
+        doctorName: record.doctorName || '当前医生',
+        remarks: record.remarks || '',
+        isLocal: true,
+        syncStatus: 'local_only',
+        createdAt: record.createdAt || now,
+        updatedAt: now,
+        id: rawId,
+        customerId: record.customerId,
+      }
+
+      const index = existing.findIndex(item => item.id === newRecord.id)
+      let updated: AppointmentRecord[]
+      if (index >= 0) {
+        updated = existing.map((item, idx) =>
+          idx === index ? { ...item, ...newRecord } : item
+        )
+      } else {
+        updated = [newRecord, ...existing]
+      }
+
+      await StorageService.setItem(LOCAL_APPOINTMENTS_KEY, updated)
+      return newRecord
+    } catch (error) {
+      console.error('saveLocalAppointment error:', error)
+      throw new Error('保存本地随访预约失败')
+    }
+  }
+
+  async deleteLocalAppointment(id: string | number): Promise<void> {
+    try {
+      const existing = await this.getLocalAppointments()
+      const filtered = existing.filter(item => item.id !== id)
+      await StorageService.setItem(LOCAL_APPOINTMENTS_KEY, filtered)
+    } catch (error) {
+      console.error('deleteLocalAppointment error:', error)
+      throw new Error('删除本地预约失败')
+    }
+  }
+
+  /**
+   * 6. 合并获取预约日历数据（远程接口 + 本地离线便签）
+   */
+  async getCombinedAppointments(
+    params: AppointmentQueryParams = { pageNum: 1, pageSize: 100 }
+  ): Promise<{ rows: AppointmentRecord[]; total: number }> {
+    try {
+      const [remoteRes, localList] = await Promise.all([
+        this.fetchReservationList(params),
+        this.getLocalAppointments(),
+      ])
+
+      // 过滤本地列表中符合当前日期条件的记录
+      let filteredLocal = localList
+      if (params.reservationDate) {
+        filteredLocal = localList.filter(
+          item => item.reservationDate === params.reservationDate
+        )
+      }
+
+      // 合并排重
+      const combined = [...filteredLocal, ...remoteRes.rows]
+      return {
+        rows: combined,
+        total: combined.length,
+      }
+    } catch (error) {
+      console.error('getCombinedAppointments error:', error)
+      const localList = await this.getLocalAppointments()
+      return { rows: localList, total: localList.length }
+    }
+  }
+
+  /**
+   * 兼容旧接口：getPatientList
+   */
+  async getPatientList(query: PatientQuery = { page: 1, pageSize: 20 }): Promise<PatientList> {
+    try {
+      const res = await this.fetchCustomerList({
+        pageNum: query.page,
+        pageSize: query.pageSize,
+        customerName: query.keyword,
+      })
+
+      const patients: Patient[] = res.rows.map(item => ({
+        id: item.id,
+        customerId: item.customerId,
+        name: item.customerName,
+        age: Number(item.age) || 0,
+        gender: item.gender === 1 || item.gender === '1' ? 'male' : 'female',
+        phone: item.mobile,
+        idCard: item.idCardNo,
+        tags: [
+          ...(item.abTag ? item.abTag.split(',') : []),
+          ...(item.chTag ? item.chTag.split(',') : []),
+        ].filter(Boolean),
+        vipName: item.vipName,
+        companyName: item.companyName,
+        subCompanyName: item.subCompanyName,
+        ownerPhysicianName: item.ownerPhysicianName,
+        ownerCsName: item.ownerCsName,
+        medicalHistory: [],
+        createdAt: item.createTime ? new Date(item.createTime) : new Date(),
+        updatedAt: item.updateTime ? new Date(item.updateTime) : new Date(),
+      }))
+
+      return {
+        patients,
+        total: res.total,
+        page: query.page,
+        pageSize: query.pageSize,
+      }
+    } catch (error) {
+      console.warn('getPatientList fallback to cache:', error)
+      const cached = await this.cacheService.getCachedPatientList(query)
+      if (cached) return cached
+      return { patients: [], total: 0, page: 1, pageSize: 20 }
+    }
+  }
+
+  async getPatientDetail(patientId: string | number): Promise<Patient> {
+    try {
+      const { customer } = await this.fetchCustomerProfile({ id: patientId })
+      if (!customer) {
+        throw new Error('未找到患者档案')
+      }
+      return {
+        id: customer.id,
+        customerId: customer.customerId,
+        name: customer.customerName,
+        age: Number(customer.age) || 0,
+        gender: customer.gender === 1 || customer.gender === '1' ? 'male' : 'female',
+        phone: customer.mobile,
+        idCard: customer.idCardNo,
+        tags: [
+          ...(customer.abTag ? customer.abTag.split(',') : []),
+          ...(customer.chTag ? customer.chTag.split(',') : []),
+        ].filter(Boolean),
+        vipName: customer.vipName,
+        companyName: customer.companyName,
+        subCompanyName: customer.subCompanyName,
+        ownerPhysicianName: customer.ownerPhysicianName,
+        ownerCsName: customer.ownerCsName,
+        medicalHistory: [],
+        createdAt: customer.createTime ? new Date(customer.createTime) : new Date(),
+        updatedAt: customer.updateTime ? new Date(customer.updateTime) : new Date(),
+      }
+    } catch (error) {
+      console.error('getPatientDetail failed:', error)
+      throw error
+    }
+  }
+
+  async updatePatientTags(patientId: string | number, tags: string[]): Promise<void> {
+    await this.cacheService.updatePatientCache(patientId, { tags })
   }
 
   async searchPatients(keyword: string): Promise<Patient[]> {
-    try {
-      console.log('PatientService.searchPatients called with:', keyword)
-
-      // 首先尝试从缓存搜索
-      const cachedResults =
-        await this.cacheService.searchCachedPatients(keyword)
-      if (cachedResults.length > 0) {
-        console.log('Returning cached search results')
-        return cachedResults
-      }
-
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 400))
-
-      // 模拟搜索结果
-      const mockResults: Patient[] = [
-        {
-          id: '1',
-          name: '李小明',
-          age: 35,
-          gender: 'male',
-          phone: '138****1234',
-          tags: ['高血压', '糖尿病'],
-          lastVisit: new Date('2024-01-15'),
-          medicalHistory: [],
-          createdAt: new Date('2024-01-01'),
-          updatedAt: new Date('2024-01-15'),
-        },
-      ]
-
-      // 缓存搜索结果
-      for (const patient of mockResults) {
-        await this.cacheService.cachePatient(patient)
-      }
-
-      return mockResults
-    } catch (error) {
-      console.error('Search patients failed:', error)
-      throw new Error('搜索患者失败')
-    }
-  }
-
-  async addPatient(patient: Omit<Patient, 'id'>): Promise<Patient> {
-    try {
-      console.log('PatientService.addPatient called with:', patient)
-
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 600))
-
-      const newPatient: Patient = {
-        ...patient,
-        id: `patient-${Date.now()}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-
-      // 缓存新患者
-      await this.cacheService.cachePatient(newPatient)
-
-      return newPatient
-    } catch (error) {
-      console.error('Add patient failed:', error)
-      throw new Error('添加患者失败')
-    }
-  }
-
-  async updatePatient(
-    patientId: string,
-    updates: Partial<Patient>
-  ): Promise<Patient> {
-    try {
-      console.log('PatientService.updatePatient called with:', {
-        patientId,
-        updates,
-      })
-
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 400))
-
-      // 获取现有患者信息并更新
-      const existingPatient = await this.getPatientDetail(patientId)
-      const updatedPatient: Patient = {
-        ...existingPatient,
-        ...updates,
-        updatedAt: new Date(),
-      }
-
-      // 更新缓存
-      await this.cacheService.updatePatientCache(patientId, updatedPatient)
-
-      return updatedPatient
-    } catch (error) {
-      console.error('Update patient failed:', error)
-      throw new Error('更新患者信息失败')
-    }
-  }
-
-  /**
-   * 清理过期缓存
-   */
-  async cleanCache(): Promise<void> {
-    await this.cacheService.cleanExpiredCache()
-  }
-
-  /**
-   * 获取缓存统计
-   */
-  async getCacheStats() {
-    return await this.cacheService.getCacheStats()
+    const res = await this.getPatientList({
+      page: 1,
+      pageSize: 20,
+      keyword,
+    })
+    return res.patients
   }
 }

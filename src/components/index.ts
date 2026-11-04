@@ -4,6 +4,8 @@
 export { WindowManager } from './WindowManager'
 export { PatientDetailDrawer } from './PatientDetailDrawer'
 export { PatientTagManager } from './PatientTagManager'
+export { AppointmentCalendar } from './AppointmentCalendar'
+export { AppointmentModal } from './AppointmentModal'
 
 // 聊天界面组件
 export {

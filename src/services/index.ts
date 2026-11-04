@@ -45,6 +45,10 @@ export type {
   NetworkStatusCallback,
 } from './networkStatusService'
 
+// 字典服务
+export { DictService } from './dictService'
+export type { DictItem } from './dictService'
+
 // 离线消息队列服务
 export { OfflineMessageQueue, offlineMessageQueue } from './offlineMessageQueue'
 export type {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Form,
   Input,
@@ -8,6 +8,9 @@ import {
   message,
   Space,
   Typography,
+  Checkbox,
+  Spin,
+  Tooltip,
 } from 'antd'
 import {
   UserOutlined,
@@ -15,9 +18,12 @@ import {
   PhoneOutlined,
   SafetyOutlined,
   IdcardOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import { useAuth } from '@/hooks'
 import { useNavigate } from 'react-router-dom'
+import { AuthService } from '@/services'
+import { STORAGE_KEYS } from '@/utils/constants'
 import type { LoginCredentials } from '@/types'
 import './LoginPage.css'
 
@@ -26,9 +32,11 @@ const { Title, Text } = Typography
 interface LoginFormData {
   username?: string
   password?: string
+  code?: string
   phone?: string
   smsCode?: string
   idCard?: string
+  rememberMe?: boolean
 }
 
 export const LoginPage: React.FC = () => {
@@ -39,8 +47,45 @@ export const LoginPage: React.FC = () => {
   const [smsLoading, setSmsLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
 
+  // 验证码状态
+  const [codeUrl, setCodeUrl] = useState<string>('')
+  const [captchaUuid, setCaptchaUuid] = useState<string>('')
+  const [captchaLoading, setCaptchaLoading] = useState<boolean>(false)
+
   const { login, loading, error, isAuthenticated, clearError } = useAuth()
   const navigate = useNavigate()
+
+  // 获取图形验证码（对应后台 GET /captchaImage）
+  const fetchCaptcha = useCallback(async () => {
+    setCaptchaLoading(true)
+    try {
+      const authService = AuthService.getInstance()
+      const res = await authService.getCaptchaImage()
+      setCodeUrl(`data:image/gif;base64,${res.img}`)
+      setCaptchaUuid(res.uuid)
+    } catch (err: any) {
+      console.error('获取图形验证码失败:', err)
+      message.error(err.message || '获取验证码失败，请检查网络')
+    } finally {
+      setCaptchaLoading(false)
+    }
+  }, [])
+
+  // 页面加载或切换至密码登录时加载验证码及记住的账号
+  useEffect(() => {
+    if (activeTab === 'password') {
+      fetchCaptcha()
+      const rememberedUser = localStorage.getItem(
+        STORAGE_KEYS.REMEMBERED_USERNAME
+      )
+      if (rememberedUser) {
+        form.setFieldsValue({
+          username: rememberedUser,
+          rememberMe: true,
+        })
+      }
+    }
+  }, [activeTab, fetchCaptcha, form])
 
   // 如果已经登录，跳转到工作台
   useEffect(() => {
@@ -49,13 +94,17 @@ export const LoginPage: React.FC = () => {
     }
   }, [isAuthenticated, navigate])
 
-  // 清除错误信息
+  // 清除错误信息并刷新验证码
   useEffect(() => {
     if (error) {
       message.error(error)
       clearError()
+      if (activeTab === 'password') {
+        fetchCaptcha()
+        form.setFieldValue('code', '')
+      }
     }
-  }, [error, clearError])
+  }, [error, clearError, activeTab, fetchCaptcha, form])
 
   // 短信验证码倒计时
   useEffect(() => {
@@ -71,12 +120,28 @@ export const LoginPage: React.FC = () => {
       const credentials: LoginCredentials = {
         type: activeTab,
         ...values,
+        uuid: activeTab === 'password' ? captchaUuid : undefined,
       }
 
       await login(credentials)
+
+      // 处理记住账号
+      if (values.rememberMe && values.username) {
+        localStorage.setItem(
+          STORAGE_KEYS.REMEMBERED_USERNAME,
+          values.username.trim()
+        )
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.REMEMBERED_USERNAME)
+      }
+
       message.success('登录成功')
     } catch (err) {
       console.error('Login error:', err)
+      if (activeTab === 'password') {
+        fetchCaptcha()
+        form.setFieldValue('code', '')
+      }
     }
   }
 
@@ -94,8 +159,8 @@ export const LoginPage: React.FC = () => {
 
     setSmsLoading(true)
     try {
-      // TODO: 调用发送短信验证码的API
-      await new Promise(resolve => setTimeout(resolve, 1000)) // 模拟API调用
+      // 模拟调用短信验证码接口
+      await new Promise(resolve => setTimeout(resolve, 1000))
       message.success('验证码已发送')
       setCountdown(60)
     } catch (err) {
@@ -112,17 +177,18 @@ export const LoginPage: React.FC = () => {
       onFinish={handleLogin}
       autoComplete="off"
       size="large"
+      initialValues={{ rememberMe: false }}
     >
       <Form.Item
         name="username"
         rules={[
-          { required: true, message: '请输入用户名' },
-          { min: 3, message: '用户名至少3个字符' },
+          { required: true, message: '请输入账号' },
+          { min: 3, message: '账号至少3个字符' },
         ]}
       >
         <Input
           prefix={<UserOutlined />}
-          placeholder="请输入用户名"
+          placeholder="请输入账号"
           autoComplete="username"
         />
       </Form.Item>
@@ -131,7 +197,7 @@ export const LoginPage: React.FC = () => {
         name="password"
         rules={[
           { required: true, message: '请输入密码' },
-          { min: 6, message: '密码至少6个字符' },
+          { min: 5, message: '密码至少5个字符' },
         ]}
       >
         <Input.Password
@@ -141,9 +207,53 @@ export const LoginPage: React.FC = () => {
         />
       </Form.Item>
 
+      <Form.Item
+        name="code"
+        rules={[{ required: true, message: '请输入验证码' }]}
+      >
+        <div className="login-code-container">
+          <Input
+            prefix={<SafetyOutlined />}
+            placeholder="请输入验证码"
+            autoComplete="off"
+            style={{ flex: 1 }}
+            onPressEnter={() => form.submit()}
+          />
+          <Tooltip title="点击刷新验证码">
+            <div
+              className="login-code-wrapper"
+              onClick={fetchCaptcha}
+            >
+              {captchaLoading ? (
+                <div className="login-code-placeholder">
+                  <Spin size="small" />
+                </div>
+              ) : codeUrl ? (
+                <img
+                  src={codeUrl}
+                  alt="验证码"
+                  className="login-code-img"
+                />
+              ) : (
+                <div className="login-code-placeholder">
+                  <ReloadOutlined />
+                  <span style={{ fontSize: '12px', marginLeft: 4 }}>重试</span>
+                </div>
+              )}
+            </div>
+          </Tooltip>
+        </div>
+      </Form.Item>
+
+      <div className="login-options">
+        <Form.Item name="rememberMe" valuePropName="checked" noStyle>
+          <Checkbox>记住账号</Checkbox>
+        </Form.Item>
+      </div>
+
       <Form.Item>
         <Button type="primary" htmlType="submit" loading={loading} block>
-          登录
+          {loading ? '登 录 中...' : '登 录'}
         </Button>
       </Form.Item>
     </Form>
@@ -248,8 +358,10 @@ export const LoginPage: React.FC = () => {
       <div className="login-container">
         <Card className="login-card" styles={{ body: {} }}>
           <div className="login-header">
-            <Title level={2}>互联网医院</Title>
-            <Text type="secondary">医生工作台</Text>
+            <Title level={2} style={{ color: '#1890ff', marginBottom: 4 }}>
+              互联网医院
+            </Title>
+            <Text type="secondary">医生与工作站桌面平台</Text>
           </div>
 
           <Tabs
@@ -262,7 +374,7 @@ export const LoginPage: React.FC = () => {
             items={[
               {
                 key: 'password',
-                label: '密码登录',
+                label: '账号登录',
                 children: renderPasswordLogin(),
               },
               {
@@ -280,7 +392,7 @@ export const LoginPage: React.FC = () => {
 
           <div className="login-footer">
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              登录即表示您同意《用户协议》和《隐私政策》
+              登录即表示您同意《用户服务协议》和《医疗隐私保护政策》
             </Text>
           </div>
         </Card>

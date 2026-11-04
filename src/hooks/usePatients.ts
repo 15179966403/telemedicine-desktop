@@ -1,49 +1,31 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { usePatientStore } from '@/stores'
 import { PatientService } from '@/services'
 import { useErrorHandler } from '@/utils/errorHandler'
 import { debounce } from '@/utils/helpers'
-import type { Patient } from '@/types'
-import type { PatientQuery } from '@/services/patientService'
+import type { Patient, PatientQuery } from '@/types'
 
 export function usePatients() {
-  const {
-    patients,
-    selectedPatient,
-    searchQuery,
-    filters,
-    loading,
-    error,
-    setPatients,
-    selectPatient,
-    updatePatient,
-    addPatient,
-    removePatient,
-    setSearchQuery,
-    setFilters,
-    setLoading,
-    clearError,
-  } = usePatientStore()
-
+  const store = usePatientStore()
   const { handleAsyncError } = useErrorHandler()
   const patientService = PatientService.getInstance()
 
   // 加载患者列表
   const loadPatients = useCallback(
     async (query?: PatientQuery) => {
-      setLoading(true)
+      store.setLoading(true)
       return handleAsyncError(
         async () => {
           const result = await patientService.getPatientList(query)
-          setPatients(result.patients)
+          store.setPatients(result.patients)
           return result
         },
-        { patients: [], total: 0, page: 1, limit: 20 }
+        { patients: [], total: 0, page: 1, pageSize: 20 }
       ).finally(() => {
-        setLoading(false)
+        store.setLoading(false)
       })
     },
-    [patientService, setPatients, setLoading, handleAsyncError]
+    [patientService, store, handleAsyncError]
   )
 
   // 搜索患者
@@ -54,109 +36,81 @@ export function usePatients() {
         return
       }
 
-      setLoading(true)
+      store.setLoading(true)
       return handleAsyncError(async () => {
         const results = await patientService.searchPatients(keyword)
-        setPatients(results)
+        store.setPatients(results)
         return results
       }, []).finally(() => {
-        setLoading(false)
+        store.setLoading(false)
       })
     }, 300),
-    [patientService, setPatients, setLoading, loadPatients, handleAsyncError]
+    [patientService, store, loadPatients, handleAsyncError]
   )
 
   // 获取患者详情
   const getPatientDetail = useCallback(
-    async (patientId: string) => {
+    async (patientId: string | number) => {
       return handleAsyncError(async () => {
         const patient = await patientService.getPatientDetail(patientId)
-        selectPatient(patient)
+        store.selectPatient(patient)
         return patient
       })
     },
-    [patientService, selectPatient, handleAsyncError]
+    [patientService, store, handleAsyncError]
   )
 
   // 更新患者信息
   const updatePatientInfo = useCallback(
-    async (patientId: string, updates: Partial<Patient>) => {
+    async (patientId: string | number, updates: Partial<Patient>) => {
       return handleAsyncError(async () => {
-        const updatedPatient = await patientService.updatePatient(
-          patientId,
-          updates
-        )
-        updatePatient(patientId, updates)
-        return updatedPatient
+        store.updatePatient(patientId, updates)
+        return updates
       })
     },
-    [patientService, updatePatient, handleAsyncError]
+    [store, handleAsyncError]
   )
 
   // 更新患者标签
   const updatePatientTags = useCallback(
-    async (patientId: string, tags: string[]) => {
+    async (patientId: string | number, tags: string[]) => {
       return handleAsyncError(async () => {
         await patientService.updatePatientTags(patientId, tags)
-        updatePatient(patientId, { tags })
+        store.updatePatient(patientId, { tags })
       })
     },
-    [patientService, updatePatient, handleAsyncError]
-  )
-
-  // 添加新患者
-  const createPatient = useCallback(
-    async (patientData: Omit<Patient, 'id'>) => {
-      return handleAsyncError(async () => {
-        const newPatient = await patientService.addPatient(patientData)
-        addPatient(newPatient)
-        return newPatient
-      })
-    },
-    [patientService, addPatient, handleAsyncError]
-  )
-
-  // 删除患者
-  const deletePatient = useCallback(
-    async (patientId: string) => {
-      return handleAsyncError(async () => {
-        // TODO: 实现删除患者的 API 调用
-        removePatient(patientId)
-      })
-    },
-    [removePatient, handleAsyncError]
+    [patientService, store, handleAsyncError]
   )
 
   // 处理搜索查询变化
   const handleSearchChange = useCallback(
     (query: string) => {
-      setSearchQuery(query)
+      store.setSearchQuery(query)
       searchPatients(query)
     },
-    [setSearchQuery, searchPatients]
+    [store, searchPatients]
   )
 
   // 处理筛选条件变化
   const handleFiltersChange = useCallback(
-    (newFilters: Partial<typeof filters>) => {
-      setFilters(newFilters)
-      // 重新加载患者列表
+    (newFilters: Partial<typeof store.filters>) => {
+      store.setFilters(newFilters)
       loadPatients({
-        search: searchQuery,
-        tags: newFilters.tags || filters.tags,
-        dateRange: newFilters.dateRange || filters.dateRange,
+        keyword: store.searchQuery,
+        tags: newFilters.tags || store.filters.tags,
+        page: 1,
+        pageSize: 20,
       })
     },
-    [setFilters, loadPatients, searchQuery, filters]
+    [store, loadPatients]
   )
 
   // 获取过滤后的患者列表
   const getFilteredPatients = useCallback(() => {
-    let filtered = [...patients]
+    let filtered = [...store.patients]
 
-    // 按搜索查询过滤
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
+    if (store.searchQuery) {
+      const query = store.searchQuery.toLowerCase()
       filtered = filtered.filter(
         patient =>
           patient.name.toLowerCase().includes(query) ||
@@ -165,65 +119,81 @@ export function usePatients() {
       )
     }
 
-    // 按标签过滤
-    if (filters.tags.length > 0) {
+    if (store.filters.tags.length > 0) {
       filtered = filtered.filter(patient =>
-        filters.tags.some(tag => patient.tags.includes(tag))
+        store.filters.tags.some(tag => patient.tags.includes(tag))
       )
     }
 
-    // 按日期范围过滤
-    if (filters.dateRange) {
-      const [startDate, endDate] = filters.dateRange
-      filtered = filtered.filter(patient => {
-        const visitDate = new Date(patient.lastVisit)
-        return visitDate >= startDate && visitDate <= endDate
-      })
-    }
-
     return filtered
-  }, [patients, searchQuery, filters])
+  }, [store.patients, store.searchQuery, store.filters])
 
   // 获取所有标签
   const getAllTags = useCallback(() => {
     const tagSet = new Set<string>()
-    patients.forEach(patient => {
+    store.patients.forEach(patient => {
       patient.tags.forEach(tag => tagSet.add(tag))
     })
     return Array.from(tagSet).sort()
-  }, [patients])
-
-  // 初始化时加载患者列表
-  useEffect(() => {
-    if (patients.length === 0) {
-      loadPatients()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [store.patients])
 
   return {
     // 状态
-    patients,
-    selectedPatient,
-    searchQuery,
-    filters,
-    loading,
-    error,
+    activeTab: store.activeTab,
+    setActiveTab: store.setActiveTab,
 
-    // 方法
+    // 客户档案列表
+    customers: store.customers,
+    customerTotal: store.customerTotal,
+    customerLoading: store.customerLoading,
+    customerParams: store.customerParams,
+    setCustomerParams: store.setCustomerParams,
+    fetchCustomers: store.fetchCustomers,
+    selectedCustomer: store.selectedCustomer,
+    selectCustomer: store.selectCustomer,
+    customerDrawerVisible: store.customerDrawerVisible,
+    openCustomerDrawer: store.openCustomerDrawer,
+    closeCustomerDrawer: store.closeCustomerDrawer,
+
+    // 服务到期提醒列表
+    serviceRecords: store.serviceRecords,
+    serviceTotal: store.serviceTotal,
+    serviceLoading: store.serviceLoading,
+    serviceParams: store.serviceParams,
+    setServiceParams: store.setServiceParams,
+    fetchServiceRecords: store.fetchServiceRecords,
+
+    // 预约与日历
+    appointments: store.appointments,
+    appointmentTotal: store.appointmentTotal,
+    appointmentLoading: store.appointmentLoading,
+    selectedDate: store.selectedDate,
+    setSelectedDate: store.setSelectedDate,
+    fetchAppointments: store.fetchAppointments,
+    saveAppointment: store.saveAppointment,
+    deleteAppointment: store.deleteAppointment,
+    appointmentModalVisible: store.appointmentModalVisible,
+    editingAppointment: store.editingAppointment,
+    openAppointmentModal: store.openAppointmentModal,
+    closeAppointmentModal: store.closeAppointmentModal,
+
+    // 兼容历史
+    patients: store.patients,
+    selectedPatient: store.selectedPatient,
+    searchQuery: store.searchQuery,
+    filters: store.filters,
+    loading: store.loading,
+    error: store.error,
+    clearError: store.clearError,
     loadPatients,
     searchPatients,
     getPatientDetail,
     updatePatientInfo,
     updatePatientTags,
-    createPatient,
-    deletePatient,
-    selectPatient,
+    selectPatient: store.selectPatient,
     handleSearchChange,
     handleFiltersChange,
-    clearError,
 
-    // 计算属性
     filteredPatients: getFilteredPatients(),
     allTags: getAllTags(),
   }

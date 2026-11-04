@@ -1,9 +1,21 @@
-import type { Patient, PatientDetail, PatientQuery, PatientList } from '@/types'
+import type {
+  Patient,
+  PatientDetail,
+  PatientQuery,
+  PatientList,
+  CustomerRecord,
+  CustomerQueryParams,
+  CustomerPageResult,
+  ServiceRecordQueryParams,
+  ServiceRecordPageResult,
+} from '@/types'
 import { StorageService } from '@/utils/storage'
 
 /**
  * 患者数据本地缓存服务
  * Patient data local cache service
+ *
+ * 支持离线访问客户列表、服务记录与随访日历
  */
 export class PatientCacheService {
   private static instance: PatientCacheService
@@ -19,7 +31,136 @@ export class PatientCacheService {
   }
 
   /**
-   * 缓存患者列表
+   * 缓存客户主列表
+   */
+  async cacheCustomerList(
+    query: CustomerQueryParams,
+    data: CustomerPageResult
+  ): Promise<void> {
+    try {
+      const cacheKey = `${this.CACHE_PREFIX}_customers_${encodeURIComponent(
+        JSON.stringify(query)
+      )}`
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        expiry: Date.now() + this.CACHE_EXPIRY,
+      }
+      await StorageService.setItem(cacheKey, cacheData)
+      // 同时按 ID 缓存单个客户档案
+      for (const item of data.rows) {
+        if (item.id != null) {
+          await this.cacheCustomerDetail(item.id, item)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to cache customer list:', error)
+    }
+  }
+
+  /**
+   * 获取缓存的客户主列表
+   */
+  async getCachedCustomerList(
+    query: CustomerQueryParams
+  ): Promise<CustomerPageResult | null> {
+    try {
+      const cacheKey = `${this.CACHE_PREFIX}_customers_${encodeURIComponent(
+        JSON.stringify(query)
+      )}`
+      const cached = (await StorageService.getItem(cacheKey)) as any
+      if (!cached || !this.isValidCache(cached)) {
+        return null
+      }
+      return cached.data
+    } catch (error) {
+      console.error('Failed to get cached customer list:', error)
+      return null
+    }
+  }
+
+  /**
+   * 缓存服务记录列表
+   */
+  async cacheServiceRecordList(
+    query: ServiceRecordQueryParams,
+    data: ServiceRecordPageResult
+  ): Promise<void> {
+    try {
+      const cacheKey = `${this.CACHE_PREFIX}_services_${encodeURIComponent(
+        JSON.stringify(query)
+      )}`
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        expiry: Date.now() + this.CACHE_EXPIRY,
+      }
+      await StorageService.setItem(cacheKey, cacheData)
+    } catch (error) {
+      console.error('Failed to cache service record list:', error)
+    }
+  }
+
+  /**
+   * 获取缓存的服务记录列表
+   */
+  async getCachedServiceRecordList(
+    query: ServiceRecordQueryParams
+  ): Promise<ServiceRecordPageResult | null> {
+    try {
+      const cacheKey = `${this.CACHE_PREFIX}_services_${encodeURIComponent(
+        JSON.stringify(query)
+      )}`
+      const cached = (await StorageService.getItem(cacheKey)) as any
+      if (!cached || !this.isValidCache(cached)) {
+        return null
+      }
+      return cached.data
+    } catch (error) {
+      console.error('Failed to get cached service records:', error)
+      return null
+    }
+  }
+
+  /**
+   * 缓存单个客户档案详情
+   */
+  async cacheCustomerDetail(
+    id: string | number,
+    data: CustomerRecord | any
+  ): Promise<void> {
+    try {
+      const cacheKey = `${this.CACHE_PREFIX}_cust_detail_${id}`
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        expiry: Date.now() + this.CACHE_EXPIRY,
+      }
+      await StorageService.setItem(cacheKey, cacheData)
+    } catch (error) {
+      console.error('Failed to cache customer detail:', error)
+    }
+  }
+
+  /**
+   * 获取缓存的客户档案详情
+   */
+  async getCachedCustomerDetail(id: string | number): Promise<any | null> {
+    try {
+      const cacheKey = `${this.CACHE_PREFIX}_cust_detail_${id}`
+      const cached = (await StorageService.getItem(cacheKey)) as any
+      if (!cached || !this.isValidCache(cached)) {
+        return null
+      }
+      return cached.data
+    } catch (error) {
+      console.error('Failed to get cached customer detail:', error)
+      return null
+    }
+  }
+
+  /**
+   * 缓存患者列表 (兼容既有模型)
    */
   async cachePatientList(
     query: PatientQuery,
@@ -39,26 +180,23 @@ export class PatientCacheService {
       for (const patient of data.patients) {
         await this.cachePatient(patient)
       }
-
-      console.log(`Cached patient list with key: ${cacheKey}`)
     } catch (error) {
       console.error('Failed to cache patient list:', error)
     }
   }
 
   /**
-   * 获取缓存的患者列表
+   * 获取缓存的患者列表 (兼容既有模型)
    */
   async getCachedPatientList(query: PatientQuery): Promise<PatientList | null> {
     try {
       const cacheKey = this.generateListCacheKey(query)
-      const cached = await StorageService.getItem(cacheKey)
+      const cached = (await StorageService.getItem(cacheKey)) as any
 
       if (!cached || !this.isValidCache(cached)) {
         return null
       }
 
-      console.log(`Retrieved cached patient list with key: ${cacheKey}`)
       return cached.data
     } catch (error) {
       console.error('Failed to get cached patient list:', error)
@@ -71,7 +209,7 @@ export class PatientCacheService {
    */
   async cachePatient(patient: Patient): Promise<void> {
     try {
-      const cacheKey = this.generatePatientCacheKey(patient.id)
+      const cacheKey = this.generatePatientCacheKey(String(patient.id))
       const cacheData = {
         data: patient,
         timestamp: Date.now(),
@@ -81,7 +219,7 @@ export class PatientCacheService {
       await StorageService.setItem(cacheKey, cacheData)
 
       // 更新患者索引
-      await this.updatePatientIndex(patient.id)
+      await this.updatePatientIndex(String(patient.id))
     } catch (error) {
       console.error('Failed to cache patient:', error)
     }
@@ -90,10 +228,10 @@ export class PatientCacheService {
   /**
    * 获取缓存的患者数据
    */
-  async getCachedPatient(patientId: string): Promise<Patient | null> {
+  async getCachedPatient(patientId: string | number): Promise<Patient | null> {
     try {
-      const cacheKey = this.generatePatientCacheKey(patientId)
-      const cached = await StorageService.getItem(cacheKey)
+      const cacheKey = this.generatePatientCacheKey(String(patientId))
+      const cached = (await StorageService.getItem(cacheKey)) as any
 
       if (!cached || !this.isValidCache(cached)) {
         return null
@@ -111,7 +249,7 @@ export class PatientCacheService {
    */
   async cachePatientDetail(patientDetail: PatientDetail): Promise<void> {
     try {
-      const cacheKey = this.generateDetailCacheKey(patientDetail.id)
+      const cacheKey = this.generateDetailCacheKey(String(patientDetail.id))
       const cacheData = {
         data: patientDetail,
         timestamp: Date.now(),
@@ -128,11 +266,11 @@ export class PatientCacheService {
    * 获取缓存的患者详情
    */
   async getCachedPatientDetail(
-    patientId: string
+    patientId: string | number
   ): Promise<PatientDetail | null> {
     try {
-      const cacheKey = this.generateDetailCacheKey(patientId)
-      const cached = await StorageService.getItem(cacheKey)
+      const cacheKey = this.generateDetailCacheKey(String(patientId))
+      const cached = (await StorageService.getItem(cacheKey)) as any
 
       if (!cached || !this.isValidCache(cached)) {
         return null
@@ -149,7 +287,7 @@ export class PatientCacheService {
    * 更新患者缓存
    */
   async updatePatientCache(
-    patientId: string,
+    patientId: string | number,
     updates: Partial<Patient>
   ): Promise<void> {
     try {
@@ -203,7 +341,7 @@ export class PatientCacheService {
       )
 
       for (const key of patientCacheKeys) {
-        const cached = await StorageService.getItem(key)
+        const cached = (await StorageService.getItem(key)) as any
         if (cached && !this.isValidCache(cached)) {
           await StorageService.removeItem(key)
         }
@@ -235,36 +373,6 @@ export class PatientCacheService {
     }
   }
 
-  /**
-   * 获取缓存统计信息
-   */
-  async getCacheStats(): Promise<{
-    totalPatients: number
-    cacheSize: number
-    lastCleanup: number
-  }> {
-    try {
-      const patientIds = await this.getPatientIndex()
-      const allKeys = await StorageService.getAllKeys()
-      const patientCacheKeys = allKeys.filter(key =>
-        key.startsWith(this.CACHE_PREFIX)
-      )
-
-      return {
-        totalPatients: patientIds.length,
-        cacheSize: patientCacheKeys.length,
-        lastCleanup: Date.now(),
-      }
-    } catch (error) {
-      console.error('Failed to get cache stats:', error)
-      return {
-        totalPatients: 0,
-        cacheSize: 0,
-        lastCleanup: 0,
-      }
-    }
-  }
-
   // 私有方法
 
   private generateListCacheKey(query: PatientQuery): string {
@@ -274,7 +382,6 @@ export class PatientCacheService {
       page: query.page || 1,
       pageSize: query.pageSize || 20,
     })
-    // Use encodeURIComponent instead of btoa to handle Unicode characters
     return `${this.CACHE_PREFIX}_list_${encodeURIComponent(queryStr)}`
   }
 
@@ -286,8 +393,14 @@ export class PatientCacheService {
     return `${this.CACHE_PREFIX}_detail_${patientId}`
   }
 
-  private isValidCache(cached: unknown): boolean {
-    return cached && cached.expiry && cached.expiry > Date.now() && cached.data
+  private isValidCache(cached: any): boolean {
+    return Boolean(
+      cached &&
+        typeof cached === 'object' &&
+        cached.expiry &&
+        cached.expiry > Date.now() &&
+        cached.data
+    )
   }
 
   private matchesKeyword(patient: Patient, keyword: string): boolean {
@@ -295,14 +408,15 @@ export class PatientCacheService {
     return (
       patient.name.toLowerCase().includes(lowerKeyword) ||
       patient.phone.includes(keyword) ||
-      patient.tags.some(tag => tag.toLowerCase().includes(lowerKeyword))
+      (patient.tags &&
+        patient.tags.some(tag => tag.toLowerCase().includes(lowerKeyword)))
     )
   }
 
   private async updatePatientIndex(patientId: string): Promise<void> {
     try {
       const indexKey = `${this.CACHE_PREFIX}_index`
-      const index = (await StorageService.getItem(indexKey)) || []
+      const index = ((await StorageService.getItem(indexKey)) as string[]) || []
 
       if (!index.includes(patientId)) {
         index.push(patientId)
@@ -322,7 +436,7 @@ export class PatientCacheService {
   private async getPatientIndex(): Promise<string[]> {
     try {
       const indexKey = `${this.CACHE_PREFIX}_index`
-      return (await StorageService.getItem(indexKey)) || []
+      return ((await StorageService.getItem(indexKey)) as string[]) || []
     } catch (error) {
       console.error('Failed to get patient index:', error)
       return []

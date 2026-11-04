@@ -7,6 +7,7 @@
 export type WindowType =
   | 'main'
   | 'consultation'
+  | 'patient'
   | 'patient_detail'
   | 'settings'
   | 'notification'

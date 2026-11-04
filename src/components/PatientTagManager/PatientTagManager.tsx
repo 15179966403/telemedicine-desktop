@@ -22,7 +22,7 @@ interface PatientTagManagerProps {
   visible: boolean
   allTags: string[]
   onClose: () => void
-  onUpdateTags: (patientId: string, tags: string[]) => Promise<void>
+  onUpdateTags: (patientId: string | number, tags: string[]) => Promise<void>
 }
 
 export const PatientTagManager: React.FC<PatientTagManagerProps> = ({

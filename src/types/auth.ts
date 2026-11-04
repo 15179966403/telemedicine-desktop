@@ -11,31 +11,51 @@ export interface LoginCredentials {
   phone?: string
   smsCode?: string
   idCard?: string
+  code?: string
+  uuid?: string
+  rememberMe?: boolean
+}
+
+// 验证码结果
+export interface CaptchaResult {
+  code?: number
+  msg?: string
+  img: string
+  uuid: string
 }
 
 // 认证结果
 export interface AuthResult {
-  success: boolean
+  success?: boolean
   token?: string
   user?: User
   message?: string
   requiresRealname?: boolean
   auditStatus?: AuditStatus
+  expiresAt?: Date
 }
 
 // 用户信息
+// 遵循项目规范：所有名为 id 或符合 xxxxId 形式的字段，保持其原始格式，不得进行格式转换
 export interface User {
-  id: string
+  id: string | number
+  userId?: string | number
+  tenantId?: string | number
+  deptId?: string | number
   username: string
   name: string
+  trueName?: string
   phone: string
+  phonenumber?: string
   email?: string
   avatar?: string
   department: string
   title: string
-  licenseNumber: string
-  auditStatus: AuditStatus
-  createdAt: Date
+  licenseNumber?: string
+  roles?: string[]
+  permissions?: string[]
+  auditStatus?: AuditStatus
+  createdAt?: Date
   lastLogin?: Date
 }
 

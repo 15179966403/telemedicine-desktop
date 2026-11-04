@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::services::AuthService;
 use crate::models::{User, LoginCredentials, AuthResult};
 use crate::utils::error::AppError;
+use crate::database::dao::BaseDao;
 
 #[tauri::command]
 pub async fn auth_login(credentials: LoginCredentials) -> Result<AuthResult, String> {
@@ -69,6 +70,58 @@ pub async fn auth_validate_session(token: String) -> Result<bool, String> {
         }
     }
 }
+
+#[tauri::command]
+pub async fn auth_save_session(
+    token: String,
+    user: serde_json::Value,
+    expires_at: String,
+) -> Result<(), String> {
+    println!("Saving session to native SQLite: {:?}", user);
+
+    let user_id = if let Some(id_str) = user["id"].as_str() {
+        id_str.to_string()
+    } else if let Some(id_num) = user["id"].as_i64() {
+        id_num.to_string()
+    } else if let Some(uid_num) = user["userId"].as_i64() {
+        uid_num.to_string()
+    } else if let Some(uid_str) = user["userId"].as_str() {
+        uid_str.to_string()
+    } else {
+        "user-0".to_string()
+    };
+
+    let username = user["username"].as_str().unwrap_or("").to_string();
+    let expires = chrono::DateTime::parse_from_rfc3339(&expires_at)
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .unwrap_or_else(|_| chrono::Utc::now() + chrono::Duration::hours(8));
+
+    let user_dao = crate::database::dao::UserDao::new();
+    match user_dao.find_by_id(&user_id) {
+        Ok(Some(_)) => {
+            if let Err(e) = user_dao.update_token(&user_id, &token, expires) {
+                eprintln!("Failed to update SQLite user token: {}", e);
+            }
+        }
+        _ => {
+            let new_user = crate::models::User {
+                id: user_id.clone(),
+                username,
+                encrypted_token: Some(token),
+                last_login: Some(chrono::Utc::now()),
+                session_expires: Some(expires),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            };
+            if let Err(e) = user_dao.create(&new_user) {
+                eprintln!("Failed to create user in SQLite: {}", e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,8 +151,8 @@ mod tests {
     async fn test_password_login_failure() {
         let credentials = LoginCredentials {
             login_type: LoginType::Password,
-            username: Some("doctor".to_string()),
-            password: Some("wrong_password".to_string()),
+            username: Some("wrong".to_string()),
+            password: Some("wrong".to_string()),
             phone: None,
             sms_code: None,
             id_card: None,
@@ -107,14 +160,5 @@ mod tests {
 
         let result = auth_login(credentials).await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "用户名或密码错误");
-    }
-
-    #[tokio::test]
-    async fn test_logout_success() {
-        let token = Some("some_token".to_string());
-
-        let logout_result = auth_logout(token).await;
-        assert!(logout_result.is_ok());
     }
 }

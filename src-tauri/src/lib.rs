@@ -28,6 +28,7 @@ pub fn run() {
             auth_logout,
             auth_refresh_token,
             auth_validate_session,
+            auth_save_session,
 
             // 患者管理命令
             get_patient_list,
