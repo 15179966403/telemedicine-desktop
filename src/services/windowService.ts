@@ -229,7 +229,7 @@ export class WindowService {
   private getWindowTitle(type: WindowInfo['type'], data?: any): string {
     switch (type) {
       case 'main':
-        return '互联网医院 - 工作台'
+        return '健康管理 - 工作台'
       case 'consultation':
         return data?.patientName ? `问诊 - ${data.patientName}` : '问诊窗口'
       case 'patient':
@@ -237,7 +237,7 @@ export class WindowService {
       case 'settings':
         return '设置'
       default:
-        return '互联网医院'
+        return '健康管理桌面端'
     }
   }
 }

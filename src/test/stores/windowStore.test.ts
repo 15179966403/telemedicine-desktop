@@ -82,7 +82,7 @@ describe('WindowStore', () => {
       const settingsWindowId = await createWindow('settings')
 
       const state = useWindowStore.getState()
-      expect(state.windows.get(mainWindowId)?.title).toBe('互联网医院 - 工作台')
+      expect(state.windows.get(mainWindowId)?.title).toBe('健康管理 - 工作台')
       expect(state.windows.get(consultationWindowId)?.title).toBe('问诊 - 李四')
       expect(state.windows.get(patientWindowId)?.title).toBe('患者详情 - 王五')
       expect(state.windows.get(settingsWindowId)?.title).toBe('设置')

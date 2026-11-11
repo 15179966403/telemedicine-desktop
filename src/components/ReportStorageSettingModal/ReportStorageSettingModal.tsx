@@ -159,7 +159,7 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
               <Input
                 value={currentPath}
                 onChange={e => setCurrentPath(e.target.value)}
-                placeholder="例如: D:\互联网医院体检报告库"
+                placeholder="例如: D:\健康管理体检报告库"
                 style={{ fontFamily: 'Consolas, monospace', fontSize: 13 }}
               />
               <Button icon={<FolderOpenOutlined />} onClick={handleSelectFolder}>

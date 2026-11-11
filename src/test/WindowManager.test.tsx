@@ -50,7 +50,7 @@ describe('WindowManager 组件测试', () => {
     {
       id: 'main-window',
       type: 'main',
-      title: '互联网医院 - 工作台',
+      title: '健康管理 - 工作台',
       url: '/',
       data: {},
       position: { x: 0, y: 0 },
@@ -111,7 +111,7 @@ describe('WindowManager 组件测试', () => {
     expect(screen.getByText('256MB')).toBeInTheDocument()
 
     // 检查窗口列表
-    expect(screen.getByText('互联网医院 - 工作台')).toBeInTheDocument()
+    expect(screen.getByText('健康管理 - 工作台')).toBeInTheDocument()
     expect(screen.getByText('问诊 - 张三')).toBeInTheDocument()
     expect(screen.getByText('患者详情 - 李四')).toBeInTheDocument()
   })

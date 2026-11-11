@@ -1,7 +1,7 @@
 [package]
 name = "telemedicine-desktop"
 version = "0.1.0"
-description = "互联网医院桌面应用"
+description = "健康管理桌面应用"
 authors = ["Telemedicine Team"]
 edition = "2021"
 

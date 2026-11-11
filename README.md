@@ -1,6 +1,6 @@
 # telemedicine-desktop
 
-互联网医院桌面应用（Tauri 2 + React 19 + TypeScript）。前端基于 Vite，桌面端使用 Rust（SQLite 持久化、WebSocket 通信、文件处理、安全能力等）。
+健康管理桌面应用（Tauri 2 + React 19 + TypeScript）。前端基于 Vite，桌面端使用 Rust（SQLite 持久化、WebSocket 通信、文件处理、安全能力等）。
 
 ## 功能概览
 

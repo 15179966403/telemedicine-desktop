@@ -359,9 +359,9 @@ export const LoginPage: React.FC = () => {
         <Card className="login-card" styles={{ body: {} }}>
           <div className="login-header">
             <Title level={2} style={{ color: '#1890ff', marginBottom: 4 }}>
-              互联网医院
+              健康管理桌面端
             </Title>
-            <Text type="secondary">医生与工作站桌面平台</Text>
+            <Text type="secondary">健康管理与医生工作站平台</Text>
           </div>
 
           <Tabs

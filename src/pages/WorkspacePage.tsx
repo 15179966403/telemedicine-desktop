@@ -43,7 +43,7 @@ export const WorkspacePage: React.FC = () => {
         }}
       >
         <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
-          互联网医院 - 工作台
+          健康管理 - 工作台
         </Title>
 
         <Space>
@@ -60,7 +60,7 @@ export const WorkspacePage: React.FC = () => {
 
       <Content style={{ padding: '24px' }}>
         <div style={{ marginBottom: 24 }}>
-          <Title level={3}>欢迎使用互联网医院工作台</Title>
+          <Title level={3}>欢迎使用健康管理工作台</Title>
           <Text type="secondary">选择下方功能模块开始您的工作</Text>
         </div>
 

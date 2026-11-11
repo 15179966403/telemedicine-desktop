@@ -303,7 +303,7 @@ pub async fn maximize_window(
 
 fn get_window_title(window_type: &str, data: &Option<serde_json::Value>) -> String {
     match window_type {
-        "main" => "互联网医院 - 工作台".to_string(),
+        "main" => "健康管理 - 工作台".to_string(),
         "consultation" => {
             if let Some(data) = data {
                 if let Some(patient_name) = data.get("patientName").and_then(|v| v.as_str()) {
@@ -327,7 +327,7 @@ fn get_window_title(window_type: &str, data: &Option<serde_json::Value>) -> Stri
             }
         }
         "settings" => "设置".to_string(),
-        _ => "互联网医院".to_string(),
+        _ => "健康管理桌面端".to_string(),
     }
 }
 

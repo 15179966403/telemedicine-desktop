@@ -31,7 +31,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: `v${process.env.PACKAGE_VERSION}`,
-              name: `互联网医院桌面端 v${process.env.PACKAGE_VERSION}`,
+              name: `健康管理桌面端 v${process.env.PACKAGE_VERSION}`,
               body: '请查看 CHANGELOG.md 了解更新内容',
               draft: true,
               prerelease: false

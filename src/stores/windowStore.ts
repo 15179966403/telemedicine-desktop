@@ -345,7 +345,7 @@ export const useWindowStore = create<WindowState & WindowActions>()(
 function getWindowTitle(type: WindowInfo['type'], data?: any): string {
   switch (type) {
     case 'main':
-      return '互联网医院 - 工作台'
+      return '健康管理 - 工作台'
     case 'consultation':
       return data?.patientName ? `问诊 - ${data.patientName}` : '问诊窗口'
     case 'patient_detail':

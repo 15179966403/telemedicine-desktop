@@ -145,19 +145,19 @@ fn sanitize_name(name: &str) -> String {
 fn get_default_report_dir() -> PathBuf {
     // 优先使用 D 盘
     if Path::new("D:\\").exists() {
-        return PathBuf::from("D:\\互联网医院体检报告库");
+        return PathBuf::from("D:\\健康管理体检报告库");
     }
     // 其次使用 E 盘
     if Path::new("E:\\").exists() {
-        return PathBuf::from("E:\\互联网医院体检报告库");
+        return PathBuf::from("E:\\健康管理体检报告库");
     }
     // 否则退回至当前用户的 Documents (我的文档) 目录，绝不污染系统根目录
     if let Some(user_profile) = std::env::var_os("USERPROFILE") {
         return PathBuf::from(user_profile)
             .join("Documents")
-            .join("互联网医院体检报告库");
+            .join("健康管理体检报告库");
     }
-    PathBuf::from("C:\\互联网医院体检报告库")
+    PathBuf::from("C:\\健康管理体检报告库")
 }
 
 /// 获取指定路径所在磁盘的可用空间（字节）
@@ -230,8 +230,11 @@ fn resolve_current_root_dir(app: &AppHandle) -> (PathBuf, bool) {
             if let Ok(content) = std::fs::read_to_string(&config_path) {
                 if let Ok(cfg) = serde_json::from_str::<SavedConfigRecord>(&content) {
                     if let Some(path_str) = cfg.custom_root_path {
-                        if !path_str.trim().is_empty() {
-                            return (PathBuf::from(path_str), true);
+                        let trimmed = path_str.trim();
+                        if !trimmed.is_empty() {
+                            // 旧版“互联网医院体检报告库”平滑过渡至“健康管理体检报告库”
+                            let migrated = trimmed.replace("互联网医院体检报告库", "健康管理体检报告库");
+                            return (PathBuf::from(migrated), true);
                         }
                     }
                 }

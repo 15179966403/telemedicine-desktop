@@ -1,4 +1,4 @@
-// 互联网医院桌面应用 - Rust 后端
+// 健康管理桌面应用 - Rust 后端
 use tauri::Manager;
 
 mod commands;
