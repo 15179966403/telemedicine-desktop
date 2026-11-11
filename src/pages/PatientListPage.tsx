@@ -29,14 +29,12 @@ import {
   PhoneOutlined,
   FileTextOutlined,
   BellOutlined,
-  FolderOpenOutlined,
   SolutionOutlined,
 } from '@ant-design/icons'
 import { BackButton } from '@/components/BackButton'
 import { PatientDetailDrawer } from '@/components/PatientDetailDrawer'
 import { AppointmentCalendar } from '@/components/AppointmentCalendar'
 import { AppointmentModal } from '@/components/AppointmentModal'
-import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/HealthScheme'
 import { usePatients, useAuth } from '@/hooks'
 import { DictService, DictItem, PatientService } from '@/services'
@@ -111,9 +109,6 @@ export const PatientListPage: React.FC = () => {
 
   // 预填快速设置提醒客户
   const [presetCustomerForAppt, setPresetCustomerForAppt] = useState<CustomerRecord | null>(null)
-
-  // 体检报告文件存储路径配置弹窗
-  const [storageModalVisible, setStorageModalVisible] = useState(false)
 
   // 健管方案全局列表状态
   const [globalSchemes, setGlobalSchemes] = useState<HealthSchemeRecord[]>([])
@@ -746,9 +741,6 @@ export const PatientListPage: React.FC = () => {
             <Text strong>{user?.name || '医生'}</Text>
             {user?.department && <Tag color="blue">{user.department}</Tag>}
           </Space>
-          <Button icon={<FolderOpenOutlined />} onClick={() => setStorageModalVisible(true)}>
-            文件存储设置
-          </Button>
           <Button icon={<ReloadOutlined />} onClick={handleRefreshAll}>
             刷新数据
           </Button>
@@ -1416,12 +1408,6 @@ export const PatientListPage: React.FC = () => {
         onSave={async payload => {
           await saveAppointment(payload)
         }}
-      />
-
-      {/* 体检报告文件存储路径配置弹窗 */}
-      <ReportStorageSettingModal
-        visible={storageModalVisible}
-        onClose={() => setStorageModalVisible(false)}
       />
     </div>
   )

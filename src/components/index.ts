@@ -49,6 +49,7 @@ export { VirtualList, DynamicVirtualList } from './VirtualList'
 // 报告存储设置与上传组件
 export { ReportStorageSettingModal } from './ReportStorageSettingModal'
 export { UploadMedicalReportModal } from './UploadMedicalReportModal'
+export { MedicalReportPreviewModal } from './MedicalReportPreviewModal'
 
 // 问卷组件
 export { QuestionnaireDetailModal } from './QuestionnaireDetailModal'
