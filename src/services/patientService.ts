@@ -11,6 +11,7 @@ import type {
   AppointmentRecord,
   AppointmentQueryParams,
   MedicalReport,
+  AddCustomerReportParams,
 } from '@/types'
 import { PatientCacheService } from './patientCacheService'
 import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants'
@@ -295,6 +296,89 @@ export class PatientService {
     } catch (error) {
       console.warn('fetchCustomerReports error:', error)
       return []
+    }
+  }
+
+  /**
+   * 5. 上传单个报告/化验单附件到后台公共文件服务（POST /common/upload）
+   * 参考 admin-web dialogUploadFile.vue
+   */
+  async uploadReportAttachment(file: File): Promise<string> {
+    try {
+      let token = ''
+      if (typeof window !== 'undefined') {
+        token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || ''
+      }
+      if (!token) {
+        token = useAuthStore.getState().token || ''
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const res = await fetch(`${API_BASE_URL}/common/upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+
+      if (!res.ok) {
+        throw new Error(`文件服务器响应异常: HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      if (data.code === 200 || data.code === '200') {
+        const url = data.url || data.data?.url || data.fileName
+        if (url) {
+          return url
+        }
+      }
+      throw new Error(data.msg || '文件上传未返回有效地址')
+    } catch (error) {
+      console.error('uploadReportAttachment error:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 6. 为客户手动新增/上传体检报告（POST /admin/pe/addMedical）
+   * 参考 admin-web VIPCustomers/dialogUploadFile.vue 中的 reqCustomAddMedical
+   */
+  async addCustomerReport(payload: AddCustomerReportParams): Promise<{ code: number; msg?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/pe/addMedical`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          customerId: payload.customerId,
+          fileUrls: payload.fileUrls,
+          reportName: payload.reportName || '体检报告',
+          reportTime: payload.reportTime,
+          medicalOrg: payload.medicalOrg,
+          reportType: payload.reportType ?? 1,
+          templateId: payload.templateId || '',
+          alias: payload.alias || payload.reportName || '体检报告',
+          associatRecord: payload.associatRecord ?? 0,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`新增报告接口响应异常: HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      if (data.code === 200 || data.code === '200') {
+        return data
+      }
+      throw new Error(data.msg || '保存体检报告失败')
+    } catch (error) {
+      console.error('addCustomerReport error:', error)
+      throw error instanceof Error ? error : new Error(String(error))
     }
   }
 

@@ -347,3 +347,16 @@ export interface MedicalReport {
   anyiHealth?: boolean // 是否为安颐健康
   [key: string]: any
 }
+
+// 医生手动上传/新增体检报告参数 (参考后台 POST /admin/pe/addMedical)
+export interface AddCustomerReportParams {
+  customerId: string | number
+  fileUrls: string[]
+  reportName: string
+  reportTime: string
+  medicalOrg: string
+  reportType: number // 1: 体检报告, 2: 用户自主反馈指标, 3: 无回复用户提醒记录
+  templateId?: string
+  alias?: string
+  associatRecord?: number
+}

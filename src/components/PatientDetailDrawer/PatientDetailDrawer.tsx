@@ -35,6 +35,7 @@ import {
   FilePdfOutlined,
   FileSearchOutlined,
   DownloadOutlined,
+  UploadOutlined,
   FolderOpenOutlined,
   FolderViewOutlined,
   SettingOutlined,
@@ -45,6 +46,7 @@ import type { CustomerRecord, Patient, MedicalReport } from '@/types'
 import { PatientService } from '@/services/patientService'
 import { ReportFileService, ReportStatusResult } from '@/services'
 import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
+import { UploadMedicalReportModal } from '@/components/UploadMedicalReportModal'
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
 
 const { Title, Text, Paragraph } = Typography
@@ -76,6 +78,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [reportStatusMap, setReportStatusMap] = useState<Record<string, ReportStatusResult>>({})
   const [downloadingReportId, setDownloadingReportId] = useState<string | number | null>(null)
   const [storageModalVisible, setStorageModalVisible] = useState(false)
+  const [uploadModalVisible, setUploadModalVisible] = useState(false)
   const [singleFileLoading, setSingleFileLoading] = useState<Record<string, boolean>>({})
   const [doctorMemo, setDoctorMemo] = useState<string>('')
   const [memoSaving, setMemoSaving] = useState(false)
@@ -685,6 +688,14 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                     </Text>
                     <Space size="small">
                       <Button
+                        type="primary"
+                        size="small"
+                        icon={<UploadOutlined />}
+                        onClick={() => setUploadModalVisible(true)}
+                      >
+                        上传报告
+                      </Button>
+                      <Button
                         size="small"
                         icon={<FolderOpenOutlined />}
                         onClick={handleOpenCustomerFolder}
@@ -905,7 +916,16 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         <Empty
                           description="暂无关联体检报告或尚未上传 OCR 文件"
                           image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        />
+                        >
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<UploadOutlined />}
+                            onClick={() => setUploadModalVisible(true)}
+                          >
+                            为该客户上传体检报告
+                          </Button>
+                        </Empty>
                       ),
                     }}
                   />
@@ -1197,6 +1217,16 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       <ReportStorageSettingModal
         visible={storageModalVisible}
         onClose={() => setStorageModalVisible(false)}
+      />
+
+      {/* 上传体检报告弹窗 */}
+      <UploadMedicalReportModal
+        visible={uploadModalVisible}
+        customer={profileData || activeCustomer}
+        onClose={() => setUploadModalVisible(false)}
+        onSuccess={() => {
+          handleRefreshReports()
+        }}
       />
 
       {/* 报告诊评意见弹窗 */}
