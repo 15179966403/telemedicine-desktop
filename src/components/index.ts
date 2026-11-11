@@ -50,5 +50,8 @@ export { VirtualList, DynamicVirtualList } from './VirtualList'
 export { ReportStorageSettingModal } from './ReportStorageSettingModal'
 export { UploadMedicalReportModal } from './UploadMedicalReportModal'
 
+// 问卷组件
+export { QuestionnaireDetailModal } from './QuestionnaireDetailModal'
+
 // 导航组件
 export { BackButton } from './BackButton'

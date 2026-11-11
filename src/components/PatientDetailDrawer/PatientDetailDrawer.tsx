@@ -19,6 +19,7 @@ import {
   Modal,
   Image,
   Tooltip,
+  Select,
   message,
 } from 'antd'
 import {
@@ -41,12 +42,14 @@ import {
   SettingOutlined,
   CheckCircleOutlined,
   SyncOutlined,
+  ProfileOutlined,
 } from '@ant-design/icons'
-import type { CustomerRecord, Patient, MedicalReport } from '@/types'
+import type { CustomerRecord, Patient, MedicalReport, QuestionnaireRecord } from '@/types'
 import { PatientService } from '@/services/patientService'
 import { ReportFileService, ReportStatusResult } from '@/services'
 import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { UploadMedicalReportModal } from '@/components/UploadMedicalReportModal'
+import { QuestionnaireDetailModal } from '@/components/QuestionnaireDetailModal'
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
 
 const { Title, Text, Paragraph } = Typography
@@ -82,6 +85,14 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [singleFileLoading, setSingleFileLoading] = useState<Record<string, boolean>>({})
   const [doctorMemo, setDoctorMemo] = useState<string>('')
   const [memoSaving, setMemoSaving] = useState(false)
+
+  // 健康生活问卷状态
+  const [questionnaires, setQuestionnaires] = useState<QuestionnaireRecord[]>([])
+  const [questionnairesLoading, setQuestionnairesLoading] = useState(false)
+  const [questionnaireStatusFilter, setQuestionnaireStatusFilter] = useState<string>('all')
+  const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState<string | number | null>(null)
+  const [questionnaireModalVisible, setQuestionnaireModalVisible] = useState(false)
+  const [exportingQuestionnaireId, setExportingQuestionnaireId] = useState<string | number | null>(null)
 
   // 融合客户数据源
   const activeCustomer: CustomerRecord | null =
@@ -157,6 +168,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           const loadedCust = profileRes.customer || activeCustomer
           setProfileData(loadedCust)
 
+          // 并行加载客户健康生活问卷
+          fetchCustomerQuestionnairesData(loadedCust)
+
           // 核心修正：/admin/peCustomer/reportPageList 接口的请求参数 customerId
           // 必须使用“健康档案详情”板块中的“系统档案编号”（即 loadedCust.id 原始格式）
           const systemArchiveId = loadedCust.id ?? activeCustomer.id
@@ -181,6 +195,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         .catch(async err => {
           console.warn('Load customer profile failed, using local activeCustomer:', err)
           setProfileData(activeCustomer)
+          fetchCustomerQuestionnairesData(activeCustomer)
           const fallbackArchiveId = activeCustomer.id
           if (fallbackArchiveId != null && fallbackArchiveId !== '') {
             setReportsLoading(true)
@@ -208,8 +223,79 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       setPreviewVisible(false)
       setActiveReportForPreview(null)
       setReportStatusMap({})
+      setQuestionnaires([])
+      setSelectedQuestionnaireId(null)
+      setQuestionnaireModalVisible(false)
+      setExportingQuestionnaireId(null)
     }
   }, [visible, activeCustomer?.id, activeCustomer?.customerId, activeCustomer?.mobile])
+
+  // 获取该客户的健康生活问卷列表
+  const fetchCustomerQuestionnairesData = async (
+    targetCustomer?: CustomerRecord | null,
+    statusFilter?: string
+  ) => {
+    const cust = targetCustomer || profileData || activeCustomer
+    if (!cust) return
+
+    try {
+      setQuestionnairesLoading(true)
+      const params: any = {}
+      if (cust.mobile) {
+        params.mobile = cust.mobile
+      }
+      if (cust.customerName) {
+        params.userName = cust.customerName
+      }
+      if (cust.customerId) {
+        params.customerId = cust.customerId
+      }
+
+      const activeStatus = statusFilter !== undefined ? statusFilter : questionnaireStatusFilter
+      if (activeStatus && activeStatus !== 'all') {
+        params.completionStatus = activeStatus
+      }
+
+      const res = await PatientService.getInstance().fetchCustomerQuestionnaires(params)
+      setQuestionnaires(res.rows || [])
+    } catch (err) {
+      console.warn('fetchCustomerQuestionnairesData error:', err)
+      setQuestionnaires([])
+    } finally {
+      setQuestionnairesLoading(false)
+    }
+  }
+
+  // 刷新问卷列表
+  const handleRefreshQuestionnaires = () => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    fetchCustomerQuestionnairesData(cust, questionnaireStatusFilter)
+      .then(() => {
+        message.success('健康生活问卷已刷新')
+      })
+      .catch(() => {
+        message.error('刷新问卷失败')
+      })
+  }
+
+  // 单行导出问卷 Excel
+  const handleExportQuestionnaireRow = async (record: QuestionnaireRecord) => {
+    try {
+      setExportingQuestionnaireId(record.id)
+      const cust = profileData || activeCustomer
+      const userName = record.userName || cust?.customerName || '客户'
+      const qName = record.questionnaireName || record.alias || '健康生活问卷'
+      const timeStr = record.createTime ? `_${record.createTime.replace(/[\s:-]/g, '')}` : ''
+      const defaultFileName = `${userName}_${qName}${timeStr}.xlsx`
+      await PatientService.getInstance().exportQuestionnaireExcel(record.id, defaultFileName)
+      message.success('问卷报告已导出')
+    } catch (err) {
+      message.error(`导出失败: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setExportingQuestionnaireId(null)
+    }
+  }
 
   // 单独刷新体检报告
   const handleRefreshReports = () => {
@@ -933,6 +1019,168 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
               ),
             },
             {
+              key: 'questionnaires',
+              label: (
+                <span>
+                  <ProfileOutlined />
+                  健康生活问卷 ({questionnaires.length})
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '4px 0' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 10,
+                      flexWrap: 'wrap',
+                      gap: 8,
+                    }}
+                  >
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      展示该客户历次填写的健康生活方式与满意度问卷，支持答题详情穿透查阅与 Excel 导出
+                    </Text>
+                    <Space size="small">
+                      <Select
+                        size="small"
+                        style={{ width: 110 }}
+                        value={questionnaireStatusFilter}
+                        onChange={val => {
+                          setQuestionnaireStatusFilter(val)
+                          fetchCustomerQuestionnairesData(profileData || activeCustomer, val)
+                        }}
+                        options={[
+                          { label: '全部状态', value: 'all' },
+                          { label: '已完成', value: '2' },
+                          { label: '未完成', value: '1' },
+                        ]}
+                      />
+                      <Button
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        loading={questionnairesLoading}
+                        onClick={handleRefreshQuestionnaires}
+                      >
+                        刷新问卷
+                      </Button>
+                    </Space>
+                  </div>
+
+                  <Table
+                    dataSource={questionnaires}
+                    rowKey={record => String(record.id)}
+                    loading={questionnairesLoading}
+                    pagination={
+                      questionnaires.length > 5
+                        ? { pageSize: 5, size: 'small', showTotal: total => `共 ${total} 份问卷` }
+                        : false
+                    }
+                    size="small"
+                    columns={[
+                      {
+                        title: '问卷名称',
+                        dataIndex: 'questionnaireName',
+                        key: 'questionnaireName',
+                        render: (text: string, record: QuestionnaireRecord) => (
+                          <Space direction="vertical" size={2}>
+                            <span style={{ fontWeight: 500, color: '#1890ff' }}>
+                              {text || record.alias || '健康生活问卷'}
+                            </span>
+                            {record.questionCode && (
+                              <Text type="secondary" style={{ fontSize: 11 }}>
+                                代码: {record.questionCode}
+                              </Text>
+                            )}
+                          </Space>
+                        ),
+                      },
+                      {
+                        title: '填写人',
+                        dataIndex: 'userName',
+                        key: 'userName',
+                        width: 100,
+                        render: (text: string) => text || current.customerName || '-',
+                      },
+                      {
+                        title: '联系手机',
+                        dataIndex: 'mobile',
+                        key: 'mobile',
+                        width: 130,
+                        render: (text: string) => text || current.mobile || '-',
+                      },
+                      {
+                        title: '完成状态',
+                        dataIndex: 'completionStatus',
+                        key: 'completionStatus',
+                        width: 90,
+                        render: (status: number | string) => {
+                          const isDone = status === 2 || status === '2'
+                          return (
+                            <Tag color={isDone ? 'success' : 'warning'}>
+                              {isDone ? '已完成' : '未完成'}
+                            </Tag>
+                          )
+                        },
+                      },
+                      {
+                        title: '填写时间',
+                        dataIndex: 'createTime',
+                        key: 'createTime',
+                        width: 160,
+                        render: (text: string) => text || '-',
+                      },
+                      {
+                        title: '操作',
+                        key: 'action',
+                        width: 130,
+                        align: 'center',
+                        render: (_: any, record: QuestionnaireRecord) => {
+                          const isDone =
+                            record.completionStatus === 2 || record.completionStatus === '2'
+                          const isExp = exportingQuestionnaireId === record.id
+                          return (
+                            <Space size="small">
+                              <Button
+                                type="link"
+                                size="small"
+                                style={{ padding: 0 }}
+                                onClick={() => {
+                                  setSelectedQuestionnaireId(record.id)
+                                  setQuestionnaireModalVisible(true)
+                                }}
+                              >
+                                详情
+                              </Button>
+                              {isDone && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0 }}
+                                  loading={isExp}
+                                  onClick={() => handleExportQuestionnaireRow(record)}
+                                >
+                                  导出
+                                </Button>
+                              )}
+                            </Space>
+                          )
+                        },
+                      },
+                    ]}
+                    locale={{
+                      emptyText: (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="该客户暂未填写健康生活问卷"
+                        />
+                      ),
+                    }}
+                  />
+                </div>
+              ),
+            },
+            {
               key: 'memo',
               label: '医生随访便签 (本地记事)',
               children: (
@@ -1226,6 +1474,16 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         onClose={() => setUploadModalVisible(false)}
         onSuccess={() => {
           handleRefreshReports()
+        }}
+      />
+
+      {/* 健康生活问卷详情弹窗 */}
+      <QuestionnaireDetailModal
+        visible={questionnaireModalVisible}
+        questionnaireId={selectedQuestionnaireId}
+        onClose={() => {
+          setQuestionnaireModalVisible(false)
+          setSelectedQuestionnaireId(null)
         }}
       />
 

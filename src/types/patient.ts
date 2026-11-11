@@ -360,3 +360,66 @@ export interface AddCustomerReportParams {
   alias?: string
   associatRecord?: number
 }
+
+// 健康生活问卷/满意度问卷答题记录 (参考后台 /admin/peQuestionnaireInfo/pageQueryList)
+export interface QuestionnaireRecord {
+  id: string | number
+  userName: string
+  mobile: string
+  baseMobile?: string
+  questionnaireName: string
+  alias?: string
+  completionStatus: number | string // 1: 未完成, 2: 已完成
+  createTime: string
+  questionCode?: string
+  gender?: number | string
+  height?: number | string
+  weight?: number | string
+  birthday?: string
+  [key: string]: any
+}
+
+// 问卷单题答题情况
+export interface QuestionnaireAnswerItem {
+  id?: string | number
+  questionnaireTitleId?: string | number
+  questionName: string
+  questionAnswer: string
+  questionType?: number
+}
+
+// 问卷详情响应数据 (参考后台 /admin/peQuestionnaireInfo/details)
+export interface QuestionnaireDetailResult {
+  id: string | number
+  userName?: string
+  mobile?: string
+  createTime?: string
+  birthday?: string
+  gender?: number | string
+  height?: number | string
+  weight?: number | string
+  completionStatus?: number | string
+  questionnaireName?: string
+  peServiceRecords?: {
+    recordsType?: string | number
+    codeType?: string | number
+    status?: number
+    activationTime?: string
+    serviceStartTime?: string
+    serviceEndTime?: string
+    [key: string]: any
+  }
+  answerList: QuestionnaireAnswerItem[]
+  [key: string]: any
+}
+
+// 问卷列表查询参数
+export interface QuestionnaireQueryParams {
+  mobile?: string
+  userName?: string
+  customerId?: string | number
+  completionStatus?: number | string
+  questionCode?: string
+  pageNum?: number
+  pageSize?: number
+}

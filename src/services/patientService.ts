@@ -12,6 +12,10 @@ import type {
   AppointmentQueryParams,
   MedicalReport,
   AddCustomerReportParams,
+  QuestionnaireRecord,
+  QuestionnaireDetailResult,
+  QuestionnaireQueryParams,
+  QuestionnaireAnswerItem,
 } from '@/types'
 import { PatientCacheService } from './patientCacheService'
 import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants'
@@ -618,5 +622,177 @@ export class PatientService {
       keyword,
     })
     return res.patients
+  }
+
+  /**
+   * 7. 获取客户健康生活问卷列表 (POST /admin/peQuestionnaireInfo/pageQueryList)
+   * 参考 admin-web SatisfactionSurvey/QuestionnaireAnswer.vue
+   */
+  async fetchCustomerQuestionnaires(
+    params: QuestionnaireQueryParams
+  ): Promise<{ rows: QuestionnaireRecord[]; total: number }> {
+    try {
+      const payload: Record<string, any> = {
+        pageNum: params.pageNum || 1,
+        pageSize: params.pageSize || 50,
+      }
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== '' && value !== undefined && value !== null) {
+          payload[key] = value
+        }
+      }
+
+      const res = await fetch(`${API_BASE_URL}/admin/peQuestionnaireInfo/pageQueryList`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 || data.code === undefined) {
+          const rows: QuestionnaireRecord[] = data.rows || data.data || []
+          const total: number = data.total || (data.rows ? data.rows.length : 0)
+          return { rows, total }
+        }
+      }
+
+      console.warn(`Questionnaire list API returned HTTP ${res.status}`)
+      return { rows: [], total: 0 }
+    } catch (error) {
+      console.warn('fetchCustomerQuestionnaires error:', error)
+      return { rows: [], total: 0 }
+    }
+  }
+
+  /**
+   * 8. 获取问卷答题详情 (POST /admin/peQuestionnaireInfo/details)
+   * 参考 admin-web dialogHealthReportPreView.vue
+   */
+  async fetchQuestionnaireDetail(id: string | number): Promise<QuestionnaireDetailResult> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/peQuestionnaireInfo/details`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ id }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`获取问卷详情失败: HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      if (data.code !== 200 && data.code !== undefined && data.code !== '200') {
+        throw new Error(data.msg || '获取问卷详情失败')
+      }
+
+      const rawData = data.data || data
+      const answerList = rawData.lineDetailsVos || []
+
+      // 题目合并逻辑：按照 questionnaireTitleId 分组，非简答题合并各选项
+      const answerMap = new Map<string | number, any>()
+      answerList.forEach((item: any) => {
+        const key = item.questionnaireTitleId ?? item.id
+        if (item.questionType == 3) {
+          // 简答题直接作为一条
+          answerMap.set(key, { ...item })
+        } else {
+          const existing = answerMap.get(key)
+          const firstAnswer = item.answerResponseVos?.[0]
+          let answerLabel = firstAnswer?.answerLabel || ''
+          if (item.questionAnswer) {
+            answerLabel = answerLabel ? `${answerLabel}-${item.questionAnswer}` : item.questionAnswer
+          }
+
+          if (existing) {
+            if (existing.answerResponseVos) {
+              existing.answerResponseVos.push({ ...firstAnswer, answerLabel })
+            }
+          } else {
+            const copy = {
+              ...item,
+              answerResponseVos: firstAnswer ? [{ ...firstAnswer, answerLabel }] : [],
+            }
+            answerMap.set(key, copy)
+          }
+        }
+      })
+
+      const formattedList: QuestionnaireAnswerItem[] = Array.from(answerMap.values()).map((item: any) => {
+        let questionAnswer = item.questionAnswer || ''
+        if (item.questionType != 3 && item.answerResponseVos?.length) {
+          questionAnswer = item.answerResponseVos
+            .map((c: any) => c.answerLabel)
+            .filter(Boolean)
+            .join('，')
+        }
+        return {
+          id: item.id,
+          questionnaireTitleId: item.questionnaireTitleId,
+          questionName: item.titleResponseVo?.questionName || item.questionName || '未命名问题',
+          questionAnswer: questionAnswer || '未作答',
+          questionType: item.questionType,
+        }
+      })
+
+      const detail: QuestionnaireDetailResult = {
+        ...rawData,
+        id: rawData.id ?? id,
+        answerList: formattedList,
+      }
+      return detail
+    } catch (error) {
+      console.error('fetchQuestionnaireDetail error:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 9. 导出问卷 Excel / 报告 (POST /admin/peQuestionnaireInfo/export)
+   * 参考 admin-web handleExportRow
+   */
+  async exportQuestionnaireExcel(id: string | number, defaultFileName?: string): Promise<void> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/peQuestionnaireInfo/export`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          id,
+          questionCode: 'customerSatisfactionSurvey',
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`导出接口异常: HTTP ${res.status}`)
+      }
+
+      // 解析文件名
+      const contentDisposition = res.headers.get('Content-Disposition') || res.headers.get('content-disposition')
+      let fileName = defaultFileName || `健康生活问卷_${id}.xlsx`
+      if (contentDisposition) {
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+        if (utf8Match && utf8Match[1]) {
+          fileName = decodeURIComponent(utf8Match[1])
+        } else {
+          const match = contentDisposition.match(/filename="?([^";]+)"?/i)
+          if (match && match[1]) {
+            fileName = decodeURIComponent(match[1])
+          }
+        }
+      }
+
+      const blob = await res.blob()
+      const urlBlob = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = urlBlob
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(urlBlob)
+    } catch (error) {
+      console.error('exportQuestionnaireExcel error:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
   }
 }
