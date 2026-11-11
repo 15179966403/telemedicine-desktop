@@ -112,13 +112,13 @@ export const PatientListPage: React.FC = () => {
     setStatsLoading(true)
     const patientService = PatientService.getInstance()
     try {
-      const [custRes, inServiceRes, allServiceRes] = await Promise.allSettled([
+      const [custRes, inServiceRes, expiringRes] = await Promise.allSettled([
         // 1. 获取管理的客户档案全局总数 (无任何过滤条件)
         patientService.fetchCustomerList({ pageNum: 1, pageSize: 1 }),
         // 2. 获取服务进行中客户全局总数 (status: [3])
         patientService.fetchServiceRecordList({ pageNum: 1, pageSize: 1, status: [3] }),
-        // 3. 获取服务中记录以精准统计 30 天内即将到期服务 (status: [3], 较大分页获取)
-        patientService.fetchServiceRecordList({ pageNum: 1, pageSize: 1000, status: [3] }),
+        // 3. 获取即将到期服务全局总数 (status: [3], isSelect: 1，完全对齐后台数据库统计口径)
+        patientService.fetchServiceRecordList({ pageNum: 1, pageSize: 1, status: [3], isSelect: 1 }),
       ])
 
       let totalCustomers = 0
@@ -132,10 +132,8 @@ export const PatientListPage: React.FC = () => {
       }
 
       let expiringSoonCount = 0
-      if (allServiceRes.status === 'fulfilled' && allServiceRes.value?.rows) {
-        expiringSoonCount = allServiceRes.value.rows.filter(
-          (r: ServiceRecord) => Number(r.remainingDays) >= 0 && Number(r.remainingDays) <= 30
-        ).length
+      if (expiringRes.status === 'fulfilled' && expiringRes.value) {
+        expiringSoonCount = expiringRes.value.total || 0
       }
 
       setGlobalStats(prev => ({
@@ -315,22 +313,14 @@ export const PatientListPage: React.FC = () => {
       title: '客户名称',
       dataIndex: 'customerName',
       key: 'customerName',
-      width: 140,
+      width: 130,
       render: (text, record) => (
-        <Space>
-          <Avatar
-            size="small"
-            icon={<UserOutlined />}
-            style={{ backgroundColor: '#1890ff' }}
-          />
-          <Text
-            strong
-            style={{ color: '#1890ff', cursor: 'pointer' }}
-            onClick={() => openCustomerDrawer(record)}
-          >
-            {text || '未知客户'}
-          </Text>
-        </Space>
+        <span
+          className="customer-name-link"
+          onClick={() => openCustomerDrawer(record)}
+        >
+          {text || '未知客户'}
+        </span>
       ),
     },
     {
@@ -406,52 +396,53 @@ export const PatientListPage: React.FC = () => {
       title: '客户名称',
       dataIndex: 'userName',
       key: 'userName',
-      width: 130,
+      width: 110,
       render: (text, record) => (
-        <Space>
-          <Avatar
-            size="small"
-            icon={<UserOutlined />}
-            style={{ backgroundColor: '#52c41a' }}
-          />
-          <Text
-            strong
-            style={{ color: '#1890ff', cursor: 'pointer' }}
-            onClick={() => {
-              const matchedCustomer = customers.find(c => c.mobile === record.mobile)
-              openCustomerDrawer(
-                matchedCustomer || {
-                  id: record.customerId || record.id,
-                  customerId: record.customerId,
-                  customerName: record.userName,
-                  mobile: record.mobile,
-                  gender: record.gender,
-                  age: record.age,
-                  topCompanyName: record.topCompanyName,
-                  subCompanyName: record.subCompanyName,
-                  ownerPhysicianName: record.ownerPhysicianName,
-                }
-              )
-            }}
-          >
-            {text || '未知客户'}
-          </Text>
-        </Space>
+        <span
+          className="customer-name-link"
+          onClick={() => {
+            const matchedCustomer = customers.find(c => c.mobile === record.mobile)
+            openCustomerDrawer(
+              matchedCustomer || {
+                id: record.customerId || record.id,
+                customerId: record.customerId,
+                customerName: record.userName,
+                mobile: record.mobile,
+                gender: record.gender,
+                age: record.age,
+                topCompanyName: record.topCompanyName,
+                subCompanyName: record.subCompanyName,
+                ownerPhysicianName: record.ownerPhysicianName,
+              }
+            )
+          }}
+        >
+          {text || '未知客户'}
+        </span>
       ),
     },
     {
       title: '联系方式',
       dataIndex: 'mobile',
       key: 'mobile',
-      width: 120,
+      width: 125,
+      render: text => <span style={{ fontFamily: 'Consolas, monospace', fontSize: 13 }}>{text || '-'}</span>,
     },
     {
       title: '客户标识',
       key: 'customerTag',
-      width: 110,
+      width: 95,
       render: (_, record) => {
         const info = DictService.getInstance().getCustomerLabel(record, recordsTypeOptions)
-        return <Tag color={info.color}>{info.text}</Tag>
+        return (
+          <Tag
+            bordered={false}
+            color={info.color}
+            style={{ margin: 0, fontSize: 12, padding: '1px 8px', borderRadius: 4 }}
+          >
+            {info.text}
+          </Tag>
+        )
       },
     },
     {
@@ -460,17 +451,17 @@ export const PatientListPage: React.FC = () => {
       key: 'status',
       width: 95,
       render: status => {
-        if (status === 2) return <Tag color="warning">待服务</Tag>
-        if (status === 3) return <Tag color="success">服务中</Tag>
-        if (status === 4) return <Tag color="default">服务结束</Tag>
-        return <Tag>未知</Tag>
+        if (status === 2) return <Badge status="warning" text="待服务" />
+        if (status === 3) return <Badge status="success" text="服务中" />
+        if (status === 4) return <Badge status="default" text="服务结束" />
+        return <Badge status="default" text="未知" />
       },
     },
     {
       title: '剩余天数',
       dataIndex: 'remainingDays',
       key: 'remainingDays',
-      width: 130,
+      width: 145,
       render: (days, record) => {
         const num = Number(days)
         if (record.status === 4) return <Text type="secondary">已完结</Text>
@@ -487,18 +478,20 @@ export const PatientListPage: React.FC = () => {
     {
       title: '服务类型',
       key: 'codeType',
-      width: 160,
+      width: 200,
       render: (_, record) => {
         // 从 service_type 字典解析真实服务类型名称，杜绝使用硬编码默认值
         const typeLabel = DictService.getInstance().getCodeTypeLabel(record.codeType, codeTypeOptions)
         return (
-          <div>
-            <div style={{ fontWeight: 600, color: '#1f1f1f' }}>{typeLabel}</div>
+          <div style={{ lineHeight: 1.4 }}>
+            <div style={{ fontWeight: 600, color: '#1f1f1f', fontSize: 13 }}>{typeLabel}</div>
             {record.itemCodeName && (
-              <div style={{ color: '#1890ff', fontSize: 12 }}>项目: {record.itemCodeName}</div>
+              <div style={{ color: '#1677ff', fontSize: 11 }}>项目: {record.itemCodeName}</div>
             )}
             {record.recordsNumber && (
-              <div style={{ color: '#8c8c8c', fontSize: 11 }}>单号: {record.recordsNumber}</div>
+              <div style={{ color: '#8c8c8c', fontSize: 11, fontFamily: 'monospace' }}>
+                单号: {record.recordsNumber}
+              </div>
             )}
           </div>
         )
@@ -507,35 +500,52 @@ export const PatientListPage: React.FC = () => {
     {
       title: '服务周期',
       key: 'servicePeriod',
-      width: 180,
-      render: (_, record) => (
-        <div style={{ fontSize: 12 }}>
-          <div>起: {record.serviceStartTime || '-'}</div>
-          <div>止: {record.serviceEndTime || '-'}</div>
-        </div>
-      ),
+      width: 195,
+      render: (_, record) => {
+        const formatSimpleDate = (val?: string) => {
+          if (!val) return '-'
+          return val.includes(' ') ? val.split(' ')[0] : val
+        }
+        const start = formatSimpleDate(record.serviceStartTime)
+        const end = formatSimpleDate(record.serviceEndTime)
+        return (
+          <div style={{ fontSize: 12, color: '#595959', whiteSpace: 'nowrap' }}>
+            <span>{start}</span>
+            <span style={{ margin: '0 4px', color: '#bfbfbf' }}>至</span>
+            <span>{end}</span>
+          </div>
+        )
+      },
     },
     {
       title: '专属服务团队',
       key: 'team',
-      width: 150,
+      width: 135,
       render: (_, record) => (
-        <div style={{ fontSize: 12 }}>
+        <div style={{ fontSize: 12, lineHeight: 1.4 }}>
           <div>医师: {record.ownerPhysicianName || '-'}</div>
-          <div style={{ color: '#888' }}>健管: {record.ownerHealthName || '-'}</div>
+          <div style={{ color: '#8c8c8c' }}>健管: {record.ownerHealthName || '-'}</div>
         </div>
       ),
     },
     {
       title: '建联 / 方案',
       key: 'connectScheme',
-      width: 130,
+      width: 125,
       render: (_, record) => (
         <Space direction="vertical" size={2}>
-          <Tag color={record.joinGroupFlag === 1 ? 'blue' : 'default'}>
+          <Tag
+            bordered={false}
+            color={record.joinGroupFlag === 1 ? 'blue' : 'default'}
+            style={{ margin: 0, fontSize: 11, borderRadius: 4 }}
+          >
             {record.joinGroupFlag === 1 ? '企微已建联' : '未建联'}
           </Tag>
-          <Tag color={record.generateStatus === 1 || record.generateStatus === 2 ? 'green' : 'orange'}>
+          <Tag
+            bordered={false}
+            color={record.generateStatus === 1 || record.generateStatus === 2 ? 'green' : 'orange'}
+            style={{ margin: 0, fontSize: 11, borderRadius: 4 }}
+          >
             {record.generateStatus === 1 || record.generateStatus === 2 ? '方案已生成' : '方案未生成'}
           </Tag>
         </Space>
@@ -544,13 +554,14 @@ export const PatientListPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 180,
       fixed: 'right',
       render: (_, record) => (
-        <Space size="small">
+        <Space size="middle">
           <Button
             type="link"
             size="small"
+            style={{ padding: 0 }}
             onClick={() => {
               const matchedCustomer = customers.find(c => c.mobile === record.mobile)
               openCustomerDrawer(
@@ -649,7 +660,7 @@ export const PatientListPage: React.FC = () => {
                 valueStyle={{ color: globalStats.expiringSoonCount > 0 ? '#fa8c16' : '#999', fontWeight: 600 }}
                 suffix={
                   globalStats.expiringSoonCount > 0 ? (
-                    <Tag color="warning" style={{ marginLeft: 6, fontSize: 11 }}>
+                    <Tag color="warning" className="stat-tag-warning">
                       需续期沟通
                     </Tag>
                   ) : null
@@ -681,7 +692,7 @@ export const PatientListPage: React.FC = () => {
                 label: (
                   <span>
                     <TeamOutlined />
-                    客户档案列表 ({customerTotal})
+                    客户档案列表 ({globalStats.totalCustomers || customerTotal})
                   </span>
                 ),
                 children: (
@@ -734,11 +745,12 @@ export const PatientListPage: React.FC = () => {
 
                     {/* 客户主表格（已去除身份证号、指标标识、慢病/大病标识、所属单位） */}
                     <Table
+                      size="middle"
                       columns={customerColumns}
                       dataSource={customers}
                       rowKey={record => String(record.id ?? record.customerId ?? record.mobile)}
                       loading={customerLoading}
-                      scroll={{ x: 1000 }}
+                      scroll={{ x: 1050 }}
                       pagination={{
                         current: customerParams.pageNum || 1,
                         pageSize: customerParams.pageSize || 20,
@@ -760,7 +772,7 @@ export const PatientListPage: React.FC = () => {
                 label: (
                   <span>
                     <ClockCircleOutlined />
-                    服务记录与到期提醒 ({serviceTotal})
+                    服务记录与到期提醒
                   </span>
                 ),
                 children: (
@@ -778,7 +790,19 @@ export const PatientListPage: React.FC = () => {
                           <Radio.Button value="expiring_soon">
                             即将到期 (≤30天)
                             {globalStats.expiringSoonCount > 0 && (
-                              <Badge count={globalStats.expiringSoonCount} style={{ marginLeft: 6 }} />
+                              <span
+                                style={{
+                                  marginLeft: 6,
+                                  padding: '1px 6px',
+                                  fontSize: 11,
+                                  borderRadius: 10,
+                                  backgroundColor: '#ff4d4f',
+                                  color: '#fff',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {globalStats.expiringSoonCount}
+                              </span>
                             )}
                           </Radio.Button>
                           <Radio.Button value="wait_service">待服务</Radio.Button>
@@ -850,11 +874,12 @@ export const PatientListPage: React.FC = () => {
 
                     {/* 服务记录表格 */}
                     <Table
+                      size="middle"
                       columns={serviceColumns}
                       dataSource={serviceRecords}
                       rowKey={record => String(record.id ?? record.recordsNumber ?? record.mobile)}
                       loading={serviceLoading}
-                      scroll={{ x: 1200 }}
+                      scroll={{ x: 1400 }}
                       pagination={{
                         current: serviceParams.pageNum || 1,
                         pageSize: serviceParams.pageSize || 20,

@@ -3,11 +3,15 @@
 // API 相关（对接后台系统）
 export const API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
-  'http://test.admin.lianhaojiankang.com'
+  (typeof import.meta !== 'undefined' && import.meta.env?.PROD
+    ? 'https://admin.lianhaojiankang.com'
+    : 'http://test.admin.lianhaojiankang.com')
 
 export const WS_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_BASE_URL) ||
-  'ws://test.admin.lianhaojiankang.com/websocket/message'
+  (typeof import.meta !== 'undefined' && import.meta.env?.PROD
+    ? 'wss://admin.lianhaojiankang.com/websocket/message'
+    : 'ws://test.admin.lianhaojiankang.com/websocket/message')
 
 // 本地存储键名
 export const STORAGE_KEYS = {

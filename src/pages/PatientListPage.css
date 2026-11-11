@@ -61,8 +61,11 @@
   border: 1px solid #ffa39e;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 4px;
   font-size: 12px;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.4;
 }
 
 .days-badge-warning {
@@ -71,16 +74,46 @@
   border: 1px solid #ffe58f;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 4px;
   font-size: 12px;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.4;
 }
 
 .days-badge-normal {
   background-color: #f6ffed;
   color: #52c41a;
   border: 1px solid #b7eb8f;
-  font-weight: 600;
+  font-weight: 500;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 4px;
   font-size: 12px;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.4;
+}
+
+.stat-tag-warning {
+  margin-left: 8px;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+  font-weight: normal;
+}
+
+.customer-name-link {
+  font-weight: 600;
+  color: #1677ff;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.customer-name-link:hover {
+  color: #4096ff;
+  text-decoration: underline;
 }
