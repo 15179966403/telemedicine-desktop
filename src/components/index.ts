@@ -53,5 +53,8 @@ export { UploadMedicalReportModal } from './UploadMedicalReportModal'
 // 问卷组件
 export { QuestionnaireDetailModal } from './QuestionnaireDetailModal'
 
+// 健管方案组件
+export { EditHealthSchemeModal, HealthSchemePreviewModal } from './HealthScheme'
+
 // 导航组件
 export { BackButton } from './BackButton'
