@@ -423,3 +423,110 @@ export interface QuestionnaireQueryParams {
   pageNum?: number
   pageSize?: number
 }
+
+// 健管方案列表记录 (参考后台 /admin/customerHealthSchemeRecord/pageQueryList)
+export interface HealthSchemeRecord {
+  id: string | number
+  customerName?: string
+  userName?: string
+  mobile?: string
+  vipCode?: string
+  recordsType?: number // 0: 三好客户, 6: 安颐健康
+  codeType?: string | number // 服务类型
+  activationTime?: string
+  auditStatus?: number // 0: 待审核, 1: 营养师通过, 2: 营养师驳回, 3: 医师通过, 4: 医师驳回, 5: 数据不全
+  ownerPhysicianName?: string
+  doctorName?: string
+  doctorId?: string | number
+  doctorAuditTime?: string
+  doctorRejectionReason?: string
+  fileUrl?: string // 初版方案 PDF 地址
+  doctorFileUrl?: string // 医师修改版本 PDF 地址
+  doctorDownload?: number // 下载次数
+  createTime?: string
+  dietitianName?: string
+  healthName?: string
+  async?: number // 1: 异步重新生成中
+  [key: string]: any
+}
+
+// 健管方案列表查询参数
+export interface HealthSchemeQueryParams {
+  customerName?: string
+  mobile?: string
+  vipCode?: string
+  dietitianName?: string
+  doctorName?: string
+  healthName?: string
+  recordsType?: number | string
+  auditStatus?: number | string
+  reportType?: number | string
+  healthSchemeRecordId?: string | number
+  pageNum?: number
+  pageSize?: number
+}
+
+// 健管方案异常指标项
+export interface HealthSchemeIndicator {
+  indicatorName: string
+  indicatorValue: string
+  [key: string]: any
+}
+
+// 健管方案关联体检报告项
+export interface HealthSchemeMedicalReportItem {
+  id: string | number
+  reportType?: number
+  reportTime?: string
+  medicalOrg?: string
+  uploadTime?: string
+  fileUrls?: string[]
+  [key: string]: any
+}
+
+// 健管方案详情与修改表单内容 (参考后台 /admin/customerHealthSchemeInfo/detail 与 updateHealthSchemeRecord)
+export interface HealthSchemeDetail {
+  id?: string | number
+  healthSchemeRecordId?: string | number
+  userName?: string
+  age?: number | string
+  gender?: number | string
+  hcyNo?: string
+  codeType?: string | number
+  hcyLevel?: string
+  value?: string // 指标值
+  cholesterol?: string // 胆固醇
+  protein?: string // 低密度蛋白
+  reportType?: number
+  peMedicalReportList?: HealthSchemeMedicalReportItem[]
+  indicatorList?: HealthSchemeIndicator[]
+  // 生活习惯
+  diet?: string
+  motion?: string
+  smoke?: string
+  drink?: string
+  sleep?: string
+  socialize?: string
+  allergyHistory?: string
+  medicalHistory?: string
+  // 饮食宜忌
+  dietSuitable?: string // 饮食宜
+  dietLimit?: string // 饮食限制吃
+  dietTaboo?: string // 饮食禁忌
+  // 目标与焦点
+  nutritionalGoal?: string // 改善目标
+  healthFocus?: string // 健康焦点
+  healthManage?: string
+  medication?: string
+  // 医生建议与分阶段
+  checkItem?: string // 检查项目
+  retestItem?: string // 复测项目
+  firstStage?: string // 第一阶段
+  secondStage?: string // 第二阶段
+  thirdStage?: string // 第三阶段
+  // 审核医生
+  doctorId?: string | number
+  doctorName?: string
+  async?: number
+  [key: string]: any
+}

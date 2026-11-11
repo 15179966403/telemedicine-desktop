@@ -16,6 +16,9 @@ import type {
   QuestionnaireDetailResult,
   QuestionnaireQueryParams,
   QuestionnaireAnswerItem,
+  HealthSchemeRecord,
+  HealthSchemeQueryParams,
+  HealthSchemeDetail,
 } from '@/types'
 import { PatientCacheService } from './patientCacheService'
 import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants'
@@ -793,6 +796,147 @@ export class PatientService {
     } catch (error) {
       console.error('exportQuestionnaireExcel error:', error)
       throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 10. 获取三师健管方案列表 (POST /admin/customerHealthSchemeRecord/pageQueryList)
+   * 参考 admin-web reportScenariosList.vue
+   */
+  async fetchHealthSchemeList(
+    params: HealthSchemeQueryParams
+  ): Promise<{ rows: HealthSchemeRecord[]; total: number }> {
+    try {
+      const payload: Record<string, any> = {
+        pageNum: params.pageNum || 1,
+        pageSize: params.pageSize || 20,
+      }
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== '' && value !== undefined && value !== null) {
+          payload[key] = value
+        }
+      }
+
+      const res = await fetch(`${API_BASE_URL}/admin/customerHealthSchemeRecord/pageQueryList`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 || data.code === undefined) {
+          const rows: HealthSchemeRecord[] = data.rows || data.data || []
+          const total: number = data.total || (data.rows ? data.rows.length : 0)
+          return { rows, total }
+        }
+      }
+
+      console.warn(`Health scheme list API returned HTTP ${res.status}`)
+      return { rows: [], total: 0 }
+    } catch (error) {
+      console.warn('fetchHealthSchemeList error:', error)
+      return { rows: [], total: 0 }
+    }
+  }
+
+  /**
+   * 11. 查询管理方案编辑详情内容 (POST /admin/customerHealthSchemeInfo/detail)
+   * 参考 admin-web reqCustomerHealthSchemeRecordDetail
+   */
+  async fetchHealthSchemeDetail(healthSchemeRecordId: string | number): Promise<HealthSchemeDetail> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/customerHealthSchemeInfo/detail`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ healthSchemeRecordId }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`获取方案详情接口异常: HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      if (data.code === 200 && data.data) {
+        return data.data
+      }
+      if (data.data) {
+        return data.data
+      }
+      throw new Error(data.msg || '获取健管方案详情失败')
+    } catch (error) {
+      console.error('fetchHealthSchemeDetail error:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 12. 提交管理方案修改并重新生成 (POST /admin/customerHealthSchemeRecord/updateHealthSchemeRecord)
+   * 参考 admin-web reqCustomerHealthSchemeRecordUpdate
+   */
+  async updateHealthSchemeRecord(payload: HealthSchemeDetail): Promise<{ code: number; msg?: string }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/customerHealthSchemeRecord/updateHealthSchemeRecord`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        throw new Error(`更新方案接口异常: HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+      if (data.code === 200 || data.code === '200') {
+        return data
+      }
+      throw new Error(data.msg || '更新健管方案失败')
+    } catch (error) {
+      console.error('updateHealthSchemeRecord error:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 13. 记录方案下载次数 (GET /admin/customerHealthSchemeRecord/updateDownload/{id})
+   * 参考 admin-web reqAdminSchemeDownloadCount
+   */
+  async recordHealthSchemeDownload(id: string | number): Promise<void> {
+    try {
+      await fetch(`${API_BASE_URL}/admin/customerHealthSchemeRecord/updateDownload/${id}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      })
+    } catch (error) {
+      console.warn('recordHealthSchemeDownload error:', error)
+    }
+  }
+
+  /**
+   * 14. 获取医生/角色人员列表 (POST /system/user/listWithRoleKey)
+   * 用于在修改健管方案时指定审核医师
+   */
+  async fetchStaffByRole(roleKey: string = '医师'): Promise<Array<{ value: string | number; label: string }>> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/system/user/listWithRoleKey`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ tenantId: 0, roleKey }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.code === 200 && Array.isArray(data.rows || data.data)) {
+          const list = data.rows || data.data
+          return list.map((item: any) => ({
+            value: item.userId ?? item.id,
+            label: item.trueName || item.nickName || item.userName || '未知人员',
+          }))
+        }
+      }
+      return []
+    } catch (err) {
+      console.warn(`fetchStaffByRole [${roleKey}] failed:`, err)
+      return []
     }
   }
 }
