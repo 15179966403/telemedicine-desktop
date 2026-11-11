@@ -20,6 +20,7 @@ import {
   Image,
   Tooltip,
   Select,
+  Badge,
   message,
 } from 'antd'
 import {
@@ -43,14 +44,17 @@ import {
   CheckCircleOutlined,
   SyncOutlined,
   ProfileOutlined,
+  SolutionOutlined,
 } from '@ant-design/icons'
-import type { CustomerRecord, Patient, MedicalReport, QuestionnaireRecord } from '@/types'
+import type { CustomerRecord, Patient, MedicalReport, QuestionnaireRecord, HealthSchemeRecord } from '@/types'
 import { PatientService } from '@/services/patientService'
-import { ReportFileService, ReportStatusResult } from '@/services'
+import { ReportFileService, ReportStatusResult, DictService, type DictItem } from '@/services'
 import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { UploadMedicalReportModal } from '@/components/UploadMedicalReportModal'
 import { QuestionnaireDetailModal } from '@/components/QuestionnaireDetailModal'
+import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/HealthScheme'
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
+import { downloadFile } from '@/utils/helpers'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -93,6 +97,34 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState<string | number | null>(null)
   const [questionnaireModalVisible, setQuestionnaireModalVisible] = useState(false)
   const [exportingQuestionnaireId, setExportingQuestionnaireId] = useState<string | number | null>(null)
+
+  // 健管方案状态
+  const [schemes, setSchemes] = useState<HealthSchemeRecord[]>([])
+  const [schemesLoading, setSchemesLoading] = useState(false)
+  const [selectedSchemeForPreview, setSelectedSchemeForPreview] = useState<HealthSchemeRecord | null>(null)
+  const [selectedSchemeForEdit, setSelectedSchemeForEdit] = useState<HealthSchemeRecord | null>(null)
+  const [schemePreviewVisible, setSchemePreviewVisible] = useState(false)
+  const [schemeEditVisible, setSchemeEditVisible] = useState(false)
+  const [downloadingSchemeId, setDownloadingSchemeId] = useState<string | number | null>(null)
+  const [schemeServiceDict, setSchemeServiceDict] = useState<DictItem[]>([])
+
+  // 加载服务类型字典
+  useEffect(() => {
+    DictService.getInstance()
+      .getDicts('service_type')
+      .then(res => {
+        setSchemeServiceDict(res || [])
+      })
+      .catch(err => {
+        console.warn('Load service_type dict failed:', err)
+      })
+  }, [])
+
+  const getSchemeServiceTypeName = (val?: string | number) => {
+    if (val === undefined || val === null) return '-'
+    const matched = schemeServiceDict.find(item => String(item.dictValue) === String(val))
+    return matched ? matched.dictLabel : String(val)
+  }
 
   // 融合客户数据源
   const activeCustomer: CustomerRecord | null =
@@ -168,8 +200,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           const loadedCust = profileRes.customer || activeCustomer
           setProfileData(loadedCust)
 
-          // 并行加载客户健康生活问卷
+          // 并行加载客户健康生活问卷与健管方案
           fetchCustomerQuestionnairesData(loadedCust)
+          fetchCustomerHealthSchemesData(loadedCust)
 
           // 核心修正：/admin/peCustomer/reportPageList 接口的请求参数 customerId
           // 必须使用“健康档案详情”板块中的“系统档案编号”（即 loadedCust.id 原始格式）
@@ -196,6 +229,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           console.warn('Load customer profile failed, using local activeCustomer:', err)
           setProfileData(activeCustomer)
           fetchCustomerQuestionnairesData(activeCustomer)
+          fetchCustomerHealthSchemesData(activeCustomer)
           const fallbackArchiveId = activeCustomer.id
           if (fallbackArchiveId != null && fallbackArchiveId !== '') {
             setReportsLoading(true)
@@ -227,6 +261,12 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       setSelectedQuestionnaireId(null)
       setQuestionnaireModalVisible(false)
       setExportingQuestionnaireId(null)
+      setSchemes([])
+      setSelectedSchemeForPreview(null)
+      setSelectedSchemeForEdit(null)
+      setSchemePreviewVisible(false)
+      setSchemeEditVisible(false)
+      setDownloadingSchemeId(null)
     }
   }, [visible, activeCustomer?.id, activeCustomer?.customerId, activeCustomer?.mobile])
 
@@ -294,6 +334,77 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       message.error(`导出失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setExportingQuestionnaireId(null)
+    }
+  }
+
+  // 获取该客户的健管方案列表
+  const fetchCustomerHealthSchemesData = async (targetCustomer?: CustomerRecord | null) => {
+    const cust = targetCustomer || profileData || activeCustomer
+    if (!cust) return
+
+    try {
+      setSchemesLoading(true)
+      const params: any = {}
+      if (cust.mobile) {
+        params.mobile = cust.mobile
+      }
+      if (cust.customerName) {
+        params.customerName = cust.customerName
+      }
+      const res = await PatientService.getInstance().fetchHealthSchemeList(params)
+      setSchemes(res.rows || [])
+    } catch (err) {
+      console.warn('fetchCustomerHealthSchemesData error:', err)
+      setSchemes([])
+    } finally {
+      setSchemesLoading(false)
+    }
+  }
+
+  // 刷新健管方案
+  const handleRefreshSchemes = () => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    fetchCustomerHealthSchemesData(cust).then(() => {
+      message.success('健管方案列表已刷新')
+    })
+  }
+
+  // 单行下载健管方案并记录下载次数
+  const handleDownloadSchemeRow = async (record: HealthSchemeRecord) => {
+    const pdfUrl = record.doctorFileUrl || record.fileUrl
+    if (!pdfUrl) {
+      message.warning('该方案暂无有效 PDF 附件')
+      return
+    }
+
+    try {
+      setDownloadingSchemeId(record.id)
+      const custName = record.customerName || record.userName || '客户'
+      const schemeTitle = record.recordsType === 6 ? '安颐健管方案' : '三师健管方案'
+      const timeStr = (record.createTime || '').slice(0, 10).replace(/-/g, '')
+      const fileName = `${custName}_${schemeTitle}_${timeStr || '方案'}.pdf`
+
+      // 触发下载
+      downloadFile(pdfUrl, fileName)
+
+      // 上报后台增加下载计数
+      if (record.id) {
+        await PatientService.getInstance().recordHealthSchemeDownload(record.id)
+        setSchemes(prev =>
+          prev.map(item =>
+            item.id === record.id
+              ? { ...item, doctorDownload: (item.doctorDownload || 0) + 1 }
+              : item
+          )
+        )
+      }
+
+      message.success('方案已下载并记录下载次数，可直接拖入企业微信发送给客户')
+    } catch (err) {
+      message.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setDownloadingSchemeId(null)
     }
   }
 
@@ -1181,6 +1292,183 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
               ),
             },
             {
+              key: 'schemes',
+              label: (
+                <span>
+                  <SolutionOutlined />
+                  健管方案 ({schemes.length})
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '4px 0' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 10,
+                      flexWrap: 'wrap',
+                      gap: 8,
+                    }}
+                  >
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      三师健管系统自动排版生成的定制化干预方案，支持即时预览、在线修改重新生成与下载发微信
+                    </Text>
+                    <Button
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      loading={schemesLoading}
+                      onClick={handleRefreshSchemes}
+                    >
+                      刷新方案
+                    </Button>
+                  </div>
+
+                  <Table
+                    dataSource={schemes}
+                    rowKey={record => String(record.id)}
+                    loading={schemesLoading}
+                    pagination={
+                      schemes.length > 5
+                        ? { pageSize: 5, size: 'small', showTotal: total => `共 ${total} 份方案` }
+                        : false
+                    }
+                    size="small"
+                    columns={[
+                      {
+                        title: '方案标识',
+                        dataIndex: 'recordsType',
+                        key: 'recordsType',
+                        width: 95,
+                        render: (type: number) => (
+                          <Tag color={type === 6 ? 'volcano' : 'blue'}>
+                            {type === 6 ? '安颐健康' : '三好卡'}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        title: '服务类型',
+                        dataIndex: 'codeType',
+                        key: 'codeType',
+                        width: 125,
+                        render: (codeType: any) => getSchemeServiceTypeName(codeType),
+                      },
+                      {
+                        title: '审核状态',
+                        dataIndex: 'auditStatus',
+                        key: 'auditStatus',
+                        width: 105,
+                        render: (status: number) => {
+                          switch (status) {
+                            case 0:
+                              return <Tag color="default">待审核</Tag>
+                            case 1:
+                              return <Tag color="cyan">营养师通过</Tag>
+                            case 2:
+                              return <Tag color="error">营养师驳回</Tag>
+                            case 3:
+                              return <Tag color="success">医师通过</Tag>
+                            case 4:
+                              return <Tag color="error">医师驳回</Tag>
+                            case 5:
+                              return <Tag color="warning">数据不全</Tag>
+                            default:
+                              return <Tag>方案已生成</Tag>
+                          }
+                        },
+                      },
+                      {
+                        title: '审核医师',
+                        dataIndex: 'doctorName',
+                        key: 'doctorName',
+                        width: 95,
+                        render: (name: string, record: HealthSchemeRecord) =>
+                          name || record.ownerPhysicianName || '-',
+                      },
+                      {
+                        title: '下载次数',
+                        dataIndex: 'doctorDownload',
+                        key: 'doctorDownload',
+                        width: 85,
+                        align: 'center',
+                        render: (count: number) => (
+                          <Badge
+                            count={count || 0}
+                            overflowCount={999}
+                            style={{
+                              backgroundColor: (count || 0) > 0 ? '#52c41a' : '#bfbfbf',
+                            }}
+                          />
+                        ),
+                      },
+                      {
+                        title: '生成时间',
+                        dataIndex: 'createTime',
+                        key: 'createTime',
+                        width: 155,
+                        render: (time: string) => time || '-',
+                      },
+                      {
+                        title: '操作',
+                        key: 'action',
+                        width: 185,
+                        align: 'center',
+                        render: (_: any, record: HealthSchemeRecord) => {
+                          const isDownloading = downloadingSchemeId === record.id
+                          const isRegenerating = record.async === 1
+
+                          return (
+                            <Space size="small">
+                              <Button
+                                type="link"
+                                size="small"
+                                style={{ padding: 0 }}
+                                onClick={() => {
+                                  setSelectedSchemeForPreview(record)
+                                  setSchemePreviewVisible(true)
+                                }}
+                              >
+                                预览
+                              </Button>
+                              <Button
+                                type="link"
+                                size="small"
+                                style={{ padding: 0 }}
+                                disabled={isRegenerating}
+                                onClick={() => {
+                                  setSelectedSchemeForEdit(record)
+                                  setSchemeEditVisible(true)
+                                }}
+                              >
+                                修改
+                              </Button>
+                              <Button
+                                type="link"
+                                size="small"
+                                style={{ padding: 0 }}
+                                loading={isDownloading}
+                                onClick={() => handleDownloadSchemeRow(record)}
+                              >
+                                下载发客户
+                              </Button>
+                            </Space>
+                          )
+                        },
+                      },
+                    ]}
+                    locale={{
+                      emptyText: (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="该客户暂未生成三师健管方案"
+                        />
+                      ),
+                    }}
+                  />
+                </div>
+              ),
+            },
+            {
               key: 'memo',
               label: '医生随访便签 (本地记事)',
               children: (
@@ -1548,6 +1836,43 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           </div>
         )}
       </Modal>
+
+      {/* 健管方案预览与下载弹窗 */}
+      <HealthSchemePreviewModal
+        visible={schemePreviewVisible}
+        schemeRecord={selectedSchemeForPreview}
+        onClose={() => {
+          setSchemePreviewVisible(false)
+          setSelectedSchemeForPreview(null)
+        }}
+        onEdit={record => {
+          setSchemePreviewVisible(false)
+          setSelectedSchemeForEdit(record)
+          setSchemeEditVisible(true)
+        }}
+        onDownloadSuccess={schemeId => {
+          setSchemes(prev =>
+            prev.map(item =>
+              item.id === schemeId
+                ? { ...item, doctorDownload: (item.doctorDownload || 0) + 1 }
+                : item
+            )
+          )
+        }}
+      />
+
+      {/* 健管方案快速修改与重新生成弹窗 */}
+      <EditHealthSchemeModal
+        visible={schemeEditVisible}
+        schemeRecord={selectedSchemeForEdit}
+        onClose={() => {
+          setSchemeEditVisible(false)
+          setSelectedSchemeForEdit(null)
+        }}
+        onSuccess={() => {
+          handleRefreshSchemes()
+        }}
+      />
     </Drawer>
   )
 }
