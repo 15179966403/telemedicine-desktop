@@ -6,6 +6,7 @@ pub mod message;
 pub mod window;
 pub mod database;
 pub mod file;
+pub mod report_file;
 pub mod websocket;
 pub mod security;
 
@@ -16,5 +17,6 @@ pub use message::*;
 pub use window::*;
 pub use database::*;
 pub use file::*;
+pub use report_file::*;
 pub use websocket::*;
 pub use security::*;

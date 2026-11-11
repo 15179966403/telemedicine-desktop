@@ -82,6 +82,16 @@ pub fn run() {
             get_file_cache_info,
             update_file_last_accessed,
 
+            // 体检报告本地文件管理命令
+            get_report_storage_dir,
+            set_report_storage_dir,
+            select_report_folder_dialog,
+            check_report_file_status,
+            download_single_report_file,
+            download_batch_report_files,
+            open_report_local_file,
+            open_report_local_folder,
+
             // 数据库相关命令
             init_database,
             sync_data,

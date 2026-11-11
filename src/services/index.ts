@@ -49,6 +49,18 @@ export type {
 export { DictService } from './dictService'
 export type { DictItem } from './dictService'
 
+// 体检报告本地文件资产管理服务
+export { ReportFileService } from './reportFileService'
+export type {
+  ReportStorageConfig,
+  SingleReportFileInfo,
+  ReportStatusResult,
+  CheckReportStatusParams,
+  DownloadReportFileParams,
+  DownloadReportBatchParams,
+  DownloadResult,
+} from './reportFileService'
+
 // 离线消息队列服务
 export { OfflineMessageQueue, offlineMessageQueue } from './offlineMessageQueue'
 export type {
