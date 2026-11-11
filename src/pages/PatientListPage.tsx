@@ -30,16 +30,19 @@ import {
   FileTextOutlined,
   BellOutlined,
   FolderOpenOutlined,
+  SolutionOutlined,
 } from '@ant-design/icons'
 import { BackButton } from '@/components/BackButton'
 import { PatientDetailDrawer } from '@/components/PatientDetailDrawer'
 import { AppointmentCalendar } from '@/components/AppointmentCalendar'
 import { AppointmentModal } from '@/components/AppointmentModal'
 import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
+import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/HealthScheme'
 import { usePatients, useAuth } from '@/hooks'
 import { DictService, DictItem, PatientService } from '@/services'
-import type { CustomerRecord, ServiceRecord } from '@/types'
+import type { CustomerRecord, ServiceRecord, HealthSchemeRecord, HealthSchemeQueryParams } from '@/types'
 import type { ColumnsType } from 'antd/es/table'
+import { downloadFile } from '@/utils/helpers'
 import dayjs from 'dayjs'
 import './PatientListPage.css'
 
@@ -112,6 +115,124 @@ export const PatientListPage: React.FC = () => {
   // 体检报告文件存储路径配置弹窗
   const [storageModalVisible, setStorageModalVisible] = useState(false)
 
+  // 健管方案全局列表状态
+  const [globalSchemes, setGlobalSchemes] = useState<HealthSchemeRecord[]>([])
+  const [globalSchemeTotal, setGlobalSchemeTotal] = useState(0)
+  const [globalSchemeLoading, setGlobalSchemeLoading] = useState(false)
+  const [schemePageNum, setSchemePageNum] = useState(1)
+  const [schemePageSize, setSchemePageSize] = useState(20)
+  const [schemeSearchCustomerName, setSchemeSearchCustomerName] = useState('')
+  const [schemeSearchMobile, setSchemeSearchMobile] = useState('')
+  const [schemeSearchAuditStatus, setSchemeSearchAuditStatus] = useState<string>('all')
+  const [schemeSearchRecordsType, setSchemeSearchRecordsType] = useState<string>('all')
+
+  // 方案弹窗控制
+  const [globalSchemePreview, setGlobalSchemePreview] = useState<HealthSchemeRecord | null>(null)
+  const [globalSchemeEdit, setGlobalSchemeEdit] = useState<HealthSchemeRecord | null>(null)
+  const [globalPreviewVisible, setGlobalPreviewVisible] = useState(false)
+  const [globalEditVisible, setGlobalEditVisible] = useState(false)
+  const [globalDownloadingSchemeId, setGlobalDownloadingSchemeId] = useState<string | number | null>(null)
+
+  // 拉取健管方案全局列表
+  const fetchGlobalSchemes = useCallback(
+    async (overrideParams?: HealthSchemeQueryParams) => {
+      setGlobalSchemeLoading(true)
+      try {
+        const params: HealthSchemeQueryParams = {
+          pageNum: overrideParams?.pageNum ?? schemePageNum,
+          pageSize: overrideParams?.pageSize ?? schemePageSize,
+          customerName: overrideParams?.customerName ?? (schemeSearchCustomerName || undefined),
+          mobile: overrideParams?.mobile ?? (schemeSearchMobile || undefined),
+        }
+        const activeStatus = overrideParams?.auditStatus !== undefined
+          ? overrideParams.auditStatus
+          : schemeSearchAuditStatus
+        if (activeStatus && activeStatus !== 'all') {
+          params.auditStatus = activeStatus
+        }
+
+        const activeRecordsType = overrideParams?.recordsType !== undefined
+          ? overrideParams.recordsType
+          : schemeSearchRecordsType
+        if (activeRecordsType && activeRecordsType !== 'all') {
+          params.recordsType = activeRecordsType
+        }
+
+        const res = await PatientService.getInstance().fetchHealthSchemeList(params)
+        setGlobalSchemes(res.rows || [])
+        setGlobalSchemeTotal(res.total || 0)
+      } catch (err) {
+        console.warn('fetchGlobalSchemes error:', err)
+        setGlobalSchemes([])
+      } finally {
+        setGlobalSchemeLoading(false)
+      }
+    },
+    [
+      schemePageNum,
+      schemePageSize,
+      schemeSearchCustomerName,
+      schemeSearchMobile,
+      schemeSearchAuditStatus,
+      schemeSearchRecordsType,
+    ]
+  )
+
+  const handleSchemeSearch = () => {
+    setSchemePageNum(1)
+    fetchGlobalSchemes({ pageNum: 1 })
+  }
+
+  const handleSchemeReset = () => {
+    setSchemeSearchCustomerName('')
+    setSchemeSearchMobile('')
+    setSchemeSearchAuditStatus('all')
+    setSchemeSearchRecordsType('all')
+    setSchemePageNum(1)
+    fetchGlobalSchemes({
+      pageNum: 1,
+      customerName: undefined,
+      mobile: undefined,
+      auditStatus: undefined,
+      recordsType: undefined,
+    })
+  }
+
+  const handleDownloadGlobalScheme = async (record: HealthSchemeRecord) => {
+    const pdfUrl = record.doctorFileUrl || record.fileUrl
+    if (!pdfUrl) {
+      message.warning('该方案暂无有效 PDF 附件文件')
+      return
+    }
+
+    try {
+      setGlobalDownloadingSchemeId(record.id)
+      const custName = record.customerName || record.userName || '客户'
+      const schemeTitle = record.recordsType === 6 ? '安颐健管方案' : '三师健管方案'
+      const timeStr = (record.createTime || '').slice(0, 10).replace(/-/g, '')
+      const fileName = `${custName}_${schemeTitle}_${timeStr || '方案'}.pdf`
+
+      downloadFile(pdfUrl, fileName)
+
+      if (record.id) {
+        await PatientService.getInstance().recordHealthSchemeDownload(record.id)
+        setGlobalSchemes(prev =>
+          prev.map(item =>
+            item.id === record.id
+              ? { ...item, doctorDownload: (item.doctorDownload || 0) + 1 }
+              : item
+          )
+        )
+      }
+
+      message.success('方案已下载并记录下载次数，可直接拖入企业微信发送给客户')
+    } catch (err) {
+      message.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setGlobalDownloadingSchemeId(null)
+    }
+  }
+
   // 拉取全局看板统计数据（不受表格检索条件过滤与分页影响）
   const fetchGlobalStats = useCallback(async () => {
     setStatsLoading(true)
@@ -159,6 +280,7 @@ export const PatientListPage: React.FC = () => {
     fetchServiceRecords({ pageNum: 1, pageSize: 20 })
     fetchAppointments()
     fetchGlobalStats()
+    fetchGlobalSchemes({ pageNum: 1, pageSize: 20 })
 
     // 拉取服务类型与客户标识字典
     const dictService = DictService.getInstance()
@@ -943,10 +1065,333 @@ export const PatientListPage: React.FC = () => {
                   />
                 ),
               },
+              {
+                key: 'schemes',
+                label: (
+                  <span>
+                    <SolutionOutlined />
+                    健管方案管理 ({globalSchemeTotal})
+                  </span>
+                ),
+                children: (
+                  <div>
+                    {/* 方案搜索栏 */}
+                    <div className="search-toolbar">
+                      <Row gutter={[16, 12]} align="middle">
+                        <Col xs={24} sm={8} md={6}>
+                          <Input
+                            placeholder="搜索客户姓名"
+                            value={schemeSearchCustomerName}
+                            onChange={e => setSchemeSearchCustomerName(e.target.value)}
+                            onPressEnter={handleSchemeSearch}
+                            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                            allowClear
+                          />
+                        </Col>
+                        <Col xs={24} sm={8} md={6}>
+                          <Input
+                            placeholder="搜索联系方式"
+                            value={schemeSearchMobile}
+                            onChange={e => setSchemeSearchMobile(e.target.value)}
+                            onPressEnter={handleSchemeSearch}
+                            prefix={<PhoneOutlined style={{ color: '#bfbfbf' }} />}
+                            allowClear
+                          />
+                        </Col>
+                        <Col xs={12} sm={8} md={4}>
+                          <Select
+                            placeholder="审核状态"
+                            style={{ width: '100%' }}
+                            value={schemeSearchAuditStatus}
+                            onChange={val => {
+                              setSchemeSearchAuditStatus(val)
+                              fetchGlobalSchemes({ auditStatus: val, pageNum: 1 })
+                            }}
+                            options={[
+                              { label: '全部状态', value: 'all' },
+                              { label: '待审核', value: '0' },
+                              { label: '营养师通过', value: '1' },
+                              { label: '营养师驳回', value: '2' },
+                              { label: '医师通过', value: '3' },
+                              { label: '医师驳回', value: '4' },
+                              { label: '数据不全', value: '5' },
+                            ]}
+                          />
+                        </Col>
+                        <Col xs={12} sm={8} md={4}>
+                          <Select
+                            placeholder="客户标识"
+                            style={{ width: '100%' }}
+                            value={schemeSearchRecordsType}
+                            onChange={val => {
+                              setSchemeSearchRecordsType(val)
+                              fetchGlobalSchemes({ recordsType: val, pageNum: 1 })
+                            }}
+                            options={[
+                              { label: '全部标识', value: 'all' },
+                              { label: '三好卡', value: '0' },
+                              { label: '安颐健康', value: '6' },
+                            ]}
+                          />
+                        </Col>
+                        <Col xs={24} sm={8} md={4}>
+                          <Space>
+                            <Button type="primary" icon={<SearchOutlined />} onClick={handleSchemeSearch}>
+                              查询
+                            </Button>
+                            <Button onClick={handleSchemeReset}>重置</Button>
+                          </Space>
+                        </Col>
+                      </Row>
+                    </div>
+
+                    {/* 健管方案列表表格 */}
+                    <Table
+                      dataSource={globalSchemes}
+                      rowKey={record => String(record.id)}
+                      loading={globalSchemeLoading}
+                      pagination={{
+                        current: schemePageNum,
+                        pageSize: schemePageSize,
+                        total: globalSchemeTotal,
+                        showSizeChanger: true,
+                        pageSizeOptions: ['10', '20', '50'],
+                        showTotal: total => `共 ${total} 份方案`,
+                        onChange: (page, size) => {
+                          setSchemePageNum(page)
+                          setSchemePageSize(size)
+                          fetchGlobalSchemes({ pageNum: page, pageSize: size })
+                        },
+                      }}
+                      size="middle"
+                      className="customers-table"
+                      columns={[
+                        {
+                          title: '客户标识',
+                          dataIndex: 'recordsType',
+                          key: 'recordsType',
+                          width: 95,
+                          align: 'center',
+                          render: (type: number) => (
+                            <Tag color={type === 6 ? 'volcano' : 'blue'}>
+                              {type === 6 ? '安颐健康' : '三好卡'}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: '用户姓名',
+                          dataIndex: 'customerName',
+                          key: 'customerName',
+                          width: 120,
+                          render: (name: string, record: HealthSchemeRecord) => (
+                            <span style={{ fontWeight: 500 }}>
+                              {name || record.userName || '-'}
+                            </span>
+                          ),
+                        },
+                        {
+                          title: '联系方式',
+                          dataIndex: 'mobile',
+                          key: 'mobile',
+                          width: 130,
+                          render: (mobile: string) => mobile || '-',
+                        },
+                        {
+                          title: '服务类型',
+                          dataIndex: 'codeType',
+                          key: 'codeType',
+                          width: 130,
+                          render: (codeType: any) => {
+                            const matched = codeTypeOptions.find(item => String(item.dictValue) === String(codeType))
+                            return matched ? matched.dictLabel : (codeType ?? '-')
+                          },
+                        },
+                        {
+                          title: '激活时间',
+                          dataIndex: 'activationTime',
+                          key: 'activationTime',
+                          width: 160,
+                          render: (time: string) => time || '-',
+                        },
+                        {
+                          title: '审核状态',
+                          dataIndex: 'auditStatus',
+                          key: 'auditStatus',
+                          width: 110,
+                          align: 'center',
+                          render: (status: number) => {
+                            switch (status) {
+                              case 0:
+                                return <Tag color="default">待审核</Tag>
+                              case 1:
+                                return <Tag color="cyan">营养师通过</Tag>
+                              case 2:
+                                return <Tag color="error">营养师驳回</Tag>
+                              case 3:
+                                return <Tag color="success">医师通过</Tag>
+                              case 4:
+                                return <Tag color="error">医师驳回</Tag>
+                              case 5:
+                                return <Tag color="warning">数据不全</Tag>
+                              default:
+                                return <Tag>方案已生成</Tag>
+                            }
+                          },
+                        },
+                        {
+                          title: '审核医师',
+                          dataIndex: 'doctorName',
+                          key: 'doctorName',
+                          width: 100,
+                          render: (name: string, record: HealthSchemeRecord) =>
+                            name || record.ownerPhysicianName || '-',
+                        },
+                        {
+                          title: '下载次数',
+                          dataIndex: 'doctorDownload',
+                          key: 'doctorDownload',
+                          width: 90,
+                          align: 'center',
+                          render: (count: number) => (
+                            <Badge
+                              count={count || 0}
+                              overflowCount={999}
+                              style={{
+                                backgroundColor: (count || 0) > 0 ? '#52c41a' : '#bfbfbf',
+                              }}
+                            />
+                          ),
+                        },
+                        {
+                          title: '医师审核时间',
+                          dataIndex: 'doctorAuditTime',
+                          key: 'doctorAuditTime',
+                          width: 160,
+                          render: (time: string) => time || '-',
+                        },
+                        {
+                          title: '创建时间',
+                          dataIndex: 'createTime',
+                          key: 'createTime',
+                          width: 160,
+                          render: (time: string) => time || '-',
+                        },
+                        {
+                          title: '操作',
+                          key: 'action',
+                          width: 220,
+                          fixed: 'right',
+                          align: 'center',
+                          render: (_: any, record: HealthSchemeRecord) => {
+                            const isDownloading = globalDownloadingSchemeId === record.id
+                            const isRegenerating = record.async === 1
+
+                            return (
+                              <Space size="middle">
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0 }}
+                                  onClick={() => {
+                                    const name = record.customerName || record.userName || '未知客户'
+                                    const phone = record.mobile || ''
+                                    if (record.mobile) {
+                                      handleViewCustomerByMobile(record.mobile, name)
+                                    } else {
+                                      openCustomerDrawer({
+                                        id: record.customerId || record.id,
+                                        customerId: record.customerId,
+                                        customerName: name,
+                                        mobile: phone,
+                                        ownerPhysicianName: record.ownerPhysicianName || record.doctorName,
+                                      })
+                                    }
+                                  }}
+                                >
+                                  档案
+                                </Button>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0 }}
+                                  onClick={() => {
+                                    setGlobalSchemePreview(record)
+                                    setGlobalPreviewVisible(true)
+                                  }}
+                                >
+                                  预览
+                                </Button>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0 }}
+                                  disabled={isRegenerating}
+                                  onClick={() => {
+                                    setGlobalSchemeEdit(record)
+                                    setGlobalEditVisible(true)
+                                  }}
+                                >
+                                  快速修改
+                                </Button>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0 }}
+                                  loading={isDownloading}
+                                  onClick={() => handleDownloadGlobalScheme(record)}
+                                >
+                                  下载发客户
+                                </Button>
+                              </Space>
+                            )
+                          },
+                        },
+                      ]}
+                    />
+                  </div>
+                ),
+              },
             ]}
           />
         </Card>
       </Content>
+
+      {/* 健管方案预览弹窗 */}
+      <HealthSchemePreviewModal
+        visible={globalPreviewVisible}
+        schemeRecord={globalSchemePreview}
+        onClose={() => {
+          setGlobalPreviewVisible(false)
+          setGlobalSchemePreview(null)
+        }}
+        onEdit={record => {
+          setGlobalPreviewVisible(false)
+          setGlobalSchemeEdit(record)
+          setGlobalEditVisible(true)
+        }}
+        onDownloadSuccess={schemeId => {
+          setGlobalSchemes(prev =>
+            prev.map(item =>
+              item.id === schemeId
+                ? { ...item, doctorDownload: (item.doctorDownload || 0) + 1 }
+                : item
+            )
+          )
+        }}
+      />
+
+      {/* 健管方案快速修改与重生成弹窗 */}
+      <EditHealthSchemeModal
+        visible={globalEditVisible}
+        schemeRecord={globalSchemeEdit}
+        onClose={() => {
+          setGlobalEditVisible(false)
+          setGlobalSchemeEdit(null)
+        }}
+        onSuccess={() => {
+          fetchGlobalSchemes()
+        }}
+      />
 
       {/* 客户完整档案详情抽屉 */}
       <PatientDetailDrawer

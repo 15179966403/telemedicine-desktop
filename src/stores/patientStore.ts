@@ -10,7 +10,7 @@ import type {
 } from '@/types'
 import { PatientService } from '@/services/patientService'
 
-export type PatientTabKey = 'customerList' | 'serviceExpiration' | 'calendar'
+export type PatientTabKey = 'customerList' | 'serviceExpiration' | 'calendar' | 'schemes'
 
 interface PatientFilters {
   searchQuery: string
