@@ -18,6 +18,7 @@ import {
   Table,
   Modal,
   Image,
+  Tooltip,
   message,
 } from 'antd'
 import {
@@ -34,9 +35,16 @@ import {
   FilePdfOutlined,
   FileSearchOutlined,
   DownloadOutlined,
+  FolderOpenOutlined,
+  FolderViewOutlined,
+  SettingOutlined,
+  CheckCircleOutlined,
+  SyncOutlined,
 } from '@ant-design/icons'
 import type { CustomerRecord, Patient, MedicalReport } from '@/types'
 import { PatientService } from '@/services/patientService'
+import { ReportFileService, ReportStatusResult } from '@/services'
+import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
 
 const { Title, Text, Paragraph } = Typography
@@ -64,6 +72,11 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [selectedReportForEval, setSelectedReportForEval] = useState<MedicalReport | null>(null)
   const [previewFiles, setPreviewFiles] = useState<string[]>([])
   const [previewVisible, setPreviewVisible] = useState(false)
+  const [activeReportForPreview, setActiveReportForPreview] = useState<MedicalReport | null>(null)
+  const [reportStatusMap, setReportStatusMap] = useState<Record<string, ReportStatusResult>>({})
+  const [downloadingReportId, setDownloadingReportId] = useState<string | number | null>(null)
+  const [storageModalVisible, setStorageModalVisible] = useState(false)
+  const [singleFileLoading, setSingleFileLoading] = useState<Record<string, boolean>>({})
   const [doctorMemo, setDoctorMemo] = useState<string>('')
   const [memoSaving, setMemoSaving] = useState(false)
 
@@ -87,6 +100,37 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           abTag: patient.tags?.join(','),
         }
       : null)
+
+  const reportFileService = ReportFileService.getInstance()
+
+  // 批量检查体检报告本地存储与更新状态
+  const checkReportsStatus = async (reportList: MedicalReport[], cust: CustomerRecord) => {
+    if (!reportList || reportList.length === 0) return
+    const newMap: Record<string, ReportStatusResult> = {}
+    await Promise.allSettled(
+      reportList.map(async r => {
+        const rawId = r.reportId ?? r.id
+        if (!rawId) return
+        const key = String(rawId)
+        try {
+          const st = await reportFileService.checkReportStatus({
+            customerId: cust.id ?? cust.customerId ?? '',
+            customerName: cust.customerName || '未命名',
+            mobile: cust.mobile || '',
+            reportId: rawId,
+            reportDate: r.reportTime || r.uploadTime || r.createTime,
+            medicalOrg: r.medicalOrg,
+            fileUrls: Array.isArray(r.fileUrls) ? r.fileUrls : [],
+            remoteUpdateTime: r.updateTime || r.uploadTime || r.createTime,
+          })
+          newMap[key] = st
+        } catch (e) {
+          console.warn('Check report file status failed for reportId:', rawId, e)
+        }
+      })
+    )
+    setReportStatusMap(prev => ({ ...prev, ...newMap }))
+  }
 
   // 当抽屉打开时加载档案详情及体检报告列表（对接后台 /admin/peCustomer/reportPageList）
   useEffect(() => {
@@ -118,6 +162,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
             try {
               const reportList = await patientService.fetchCustomerReports(systemArchiveId)
               setReports(reportList || [])
+              if (reportList && reportList.length > 0) {
+                checkReportsStatus(reportList, loadedCust)
+              }
             } catch (err) {
               console.warn('Load customer reports failed:', err)
               setReports([])
@@ -137,6 +184,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
             try {
               const reportList = await patientService.fetchCustomerReports(fallbackArchiveId)
               setReports(reportList || [])
+              if (reportList && reportList.length > 0) {
+                checkReportsStatus(reportList, activeCustomer)
+              }
             } catch {
               setReports([])
             } finally {
@@ -153,6 +203,8 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       setDoctorMemo('')
       setSelectedReportForEval(null)
       setPreviewVisible(false)
+      setActiveReportForPreview(null)
+      setReportStatusMap({})
     }
   }, [visible, activeCustomer?.id, activeCustomer?.customerId, activeCustomer?.mobile])
 
@@ -172,8 +224,12 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     PatientService.getInstance()
       .fetchCustomerReports(systemArchiveId)
       .then(res => {
-        setReports(res || [])
+        const list = res || []
+        setReports(list)
         message.success('体检报告列表已刷新')
+        if (list.length > 0) {
+          checkReportsStatus(list, cust)
+        }
       })
       .catch(err => {
         console.warn('Refresh reports failed:', err)
@@ -184,6 +240,178 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       })
   }
 
+  // 下载整份报告的所有附件并归档到本地
+  const handleDownloadReport = async (record: MedicalReport) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const rawId = record.reportId ?? record.id
+    if (!rawId) {
+      message.warning('缺少报告编号')
+      return
+    }
+    const urls = Array.isArray(record.fileUrls) ? record.fileUrls : []
+    if (urls.length === 0) {
+      message.info('该报告暂无源附件文件')
+      return
+    }
+
+    setDownloadingReportId(rawId)
+    const key = String(rawId)
+    try {
+      const resList = await reportFileService.downloadBatchFiles({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: urls,
+      })
+
+      const successCount = resList.filter(r => r.success).length
+      const failedCount = resList.filter(r => !r.success).length
+
+      if (failedCount === 0) {
+        message.success(`体检报告附件下载完成 (${successCount} 个文件已归档)`)
+      } else {
+        message.warning(`归档完成：成功 ${successCount} 个，失败 ${failedCount} 个`)
+      }
+
+      // 重新检查状态并更新
+      const updatedStatus = await reportFileService.checkReportStatus({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: urls,
+        remoteUpdateTime: record.updateTime || record.uploadTime || record.createTime,
+      })
+      setReportStatusMap(prev => ({ ...prev, [key]: updatedStatus }))
+    } catch (err: any) {
+      message.error(`报告归档失败: ${err?.message || err}`)
+    } finally {
+      setDownloadingReportId(null)
+    }
+  }
+
+  // 打开指定报告的本地目录
+  const handleOpenReportFolder = async (record: MedicalReport) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const rawId = record.reportId ?? record.id
+    if (!rawId) {
+      message.warning('缺少报告编号')
+      return
+    }
+    const key = String(rawId)
+    let status = reportStatusMap[key]
+
+    try {
+      if (!status || !status.reportDir) {
+        status = await reportFileService.checkReportStatus({
+          customerId: cust.id ?? cust.customerId ?? '',
+          customerName: cust.customerName || '未命名',
+          mobile: cust.mobile || '',
+          reportId: rawId,
+          reportDate: record.reportTime || record.uploadTime || record.createTime,
+          medicalOrg: record.medicalOrg,
+          fileUrls: Array.isArray(record.fileUrls) ? record.fileUrls : [],
+          remoteUpdateTime: record.updateTime || record.uploadTime || record.createTime,
+        })
+        setReportStatusMap(prev => ({ ...prev, [key]: status }))
+      }
+
+      await reportFileService.openLocalFolder(status.reportDir)
+    } catch (err: any) {
+      message.error(`打开本地目录失败: ${err?.message || err}`)
+    }
+  }
+
+  // 打开该客户专属的报告归档根目录
+  const handleOpenCustomerFolder = async () => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    try {
+      const dummyStatus = await reportFileService.checkReportStatus({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: '__customer_root__',
+        fileUrls: [],
+      })
+      const custDir = dummyStatus.reportDir.replace(/[\\/][^\\/]+$/, '')
+      await reportFileService.openLocalFolder(custDir)
+    } catch (err: any) {
+      message.error(`打开客户报告目录失败: ${err?.message || err}`)
+    }
+  }
+
+  // 单个文件下载并立即在本地打开
+  const handleDownloadAndOpenFile = async (record: MedicalReport, fileUrl: string) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const rawId = record.reportId ?? record.id
+    if (!rawId) {
+      message.warning('缺少报告编号')
+      return
+    }
+    setSingleFileLoading(prev => ({ ...prev, [fileUrl]: true }))
+    try {
+      const res = await reportFileService.downloadSingleFile({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrl,
+      })
+      if (!res.success) {
+        throw new Error(res.error || '下载文件失败')
+      }
+      message.success('文件下载完成')
+      // 调用本地程序打开
+      await reportFileService.openLocalFile(res.localPath)
+
+      // 刷新本报告状态
+      const updatedStatus = await reportFileService.checkReportStatus({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: Array.isArray(record.fileUrls) ? record.fileUrls : [],
+        remoteUpdateTime: record.updateTime || record.uploadTime || record.createTime,
+      })
+      setReportStatusMap(prev => ({ ...prev, [String(rawId)]: updatedStatus }))
+    } catch (err: any) {
+      message.error(`打开或下载文件失败: ${err?.message || err}`)
+    } finally {
+      setSingleFileLoading(prev => ({ ...prev, [fileUrl]: false }))
+    }
+  }
+
+  // 直接通过系统默认程序打开本地已存在文件
+  const handleOpenLocalExistingFile = async (localPath: string) => {
+    try {
+      await reportFileService.openLocalFile(localPath)
+    } catch (err: any) {
+      message.error(`打开本地文件失败: ${err?.message || err}`)
+    }
+  }
+
+  // 在资源管理器中选中并定位文件
+  const handleOpenLocalExistingFolder = async (localPathOrDir: string) => {
+    try {
+      await reportFileService.openLocalFolder(localPathOrDir)
+    } catch (err: any) {
+      message.error(`定位文件夹失败: ${err?.message || err}`)
+    }
+  }
+
   // 打开报告源文件预览弹窗
   const handleOpenPreview = (record: MedicalReport) => {
     const urls = Array.isArray(record.fileUrls) ? record.fileUrls : []
@@ -191,6 +419,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       message.info('该报告暂无源附件文件')
       return
     }
+    setActiveReportForPreview(record)
     setPreviewFiles(urls)
     setPreviewVisible(true)
   }
@@ -253,7 +482,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     <Drawer
       title="客户完整档案与健康履历"
       placement="right"
-      width={720}
+      width={800}
       open={visible}
       onClose={onClose}
       destroyOnClose
@@ -447,34 +676,57 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       marginBottom: 10,
+                      flexWrap: 'wrap',
+                      gap: 8,
                     }}
                   >
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      显示从后台同步的历次健康体检、理化指标及 OCR 识别报告
+                      从后台同步的历次健康体检、理化指标及报告原件，支持本地智能归档与秒开
                     </Text>
-                    <Button
-                      size="small"
-                      icon={<ReloadOutlined spin={reportsLoading} />}
-                      onClick={handleRefreshReports}
-                    >
-                      刷新列表
-                    </Button>
+                    <Space size="small">
+                      <Button
+                        size="small"
+                        icon={<FolderOpenOutlined />}
+                        onClick={handleOpenCustomerFolder}
+                      >
+                        打开客户报告目录
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<SettingOutlined />}
+                        onClick={() => setStorageModalVisible(true)}
+                      >
+                        存储设置
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<ReloadOutlined spin={reportsLoading} />}
+                        onClick={handleRefreshReports}
+                      >
+                        刷新
+                      </Button>
+                    </Space>
                   </div>
 
                   <Table
                     columns={[
                       {
-                        title: '报告编号',
+                        title: '报告名称 / 编号',
                         dataIndex: 'reportId',
                         key: 'reportId',
-                        width: 140,
+                        width: 150,
                         render: (text: any, record: MedicalReport) => (
                           <div>
                             <Text strong style={{ fontSize: 13 }}>
-                              {text || record.id || '-'}
+                              {record.reportName || text || record.id || '-'}
                             </Text>
+                            {record.reportName && (text || record.id) && (
+                              <div style={{ fontSize: 11, color: '#888' }}>
+                                ID: {text || record.id}
+                              </div>
+                            )}
                             {record.anyiHealth && (
-                              <Tag color="warning" style={{ marginLeft: 4, transform: 'scale(0.85)' }}>
+                              <Tag color="warning" style={{ marginTop: 2, transform: 'scale(0.85)', transformOrigin: 'left center' }}>
                                 安颐健康
                               </Tag>
                             )}
@@ -482,10 +734,10 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         ),
                       },
                       {
-                        title: '报告类型',
+                        title: '类型',
                         dataIndex: 'reportType',
                         key: 'reportType',
-                        width: 95,
+                        width: 85,
                         render: (type: any) => {
                           const num = Number(type)
                           if (num === 1) return <Tag color="blue">体检报告</Tag>
@@ -495,9 +747,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         },
                       },
                       {
-                        title: '体检机构 / 日期',
+                        title: '机构 / 日期',
                         key: 'orgTime',
-                        minWidth: 140,
+                        minWidth: 120,
                         render: (_: any, record: MedicalReport) => (
                           <div style={{ fontSize: 12 }}>
                             <div style={{ fontWeight: 500, color: '#333' }}>
@@ -511,9 +763,63 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         ),
                       },
                       {
+                        title: '本地归档状态',
+                        key: 'localStatus',
+                        width: 140,
+                        render: (_: any, record: MedicalReport) => {
+                          const repId = record.reportId ?? record.id
+                          const isDownloading = downloadingReportId === repId
+                          if (isDownloading) {
+                            return <Tag icon={<SyncOutlined spin />} color="processing">同步下载中...</Tag>
+                          }
+                          const status = reportStatusMap[String(repId)]
+                          if (!status) {
+                            return <Text type="secondary" style={{ fontSize: 12 }}>检测中...</Text>
+                          }
+                          const total = status.files?.length || 0
+                          const localCount = status.files?.filter(f => f.exists).length || 0
+
+                          if (total === 0) {
+                            return <Tag color="default">无附件</Tag>
+                          }
+
+                          if (status.hasUpdates) {
+                            return (
+                              <Tooltip title="云端有较新报告或文件更新，建议重新同步">
+                                <Tag icon={<SyncOutlined />} color="warning">
+                                  有更新 ({localCount}/{total})
+                                </Tag>
+                              </Tooltip>
+                            )
+                          }
+
+                          if (status.allDownloaded || (total > 0 && localCount === total)) {
+                            return (
+                              <Tooltip title={`本地已归档 (${localCount}/${total})，存放于: ${status.reportDir}`}>
+                                <Tag icon={<CheckCircleOutlined />} color="success">
+                                  已归档 ({localCount}/{total})
+                                </Tag>
+                              </Tooltip>
+                            )
+                          }
+
+                          if (localCount > 0) {
+                            return (
+                              <Tooltip title={`部分文件已下载 (${localCount}/${total})`}>
+                                <Tag color="orange">
+                                  部分下载 ({localCount}/{total})
+                                </Tag>
+                              </Tooltip>
+                            )
+                          }
+
+                          return <Tag color="default">未下载到本地</Tag>
+                        },
+                      },
+                      {
                         title: 'OCR状态',
                         key: 'orcStatus',
-                        width: 90,
+                        width: 80,
                         render: (_: any, record: MedicalReport) => {
                           if (record.orcStatus === 1) return <Tag color="processing">识别中</Tag>
                           if (record.orcStatus === 2) return <Tag color="success">已完成</Tag>
@@ -524,12 +830,17 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       {
                         title: '操作',
                         key: 'action',
-                        width: 130,
+                        width: 195,
                         fixed: 'right' as const,
                         render: (_: any, record: MedicalReport) => {
+                          const repId = record.reportId ?? record.id
                           const fileCount = Array.isArray(record.fileUrls) ? record.fileUrls.length : 0
+                          const status = reportStatusMap[String(repId)]
+                          const isDownloading = downloadingReportId === repId
+                          const isReady = status?.allDownloaded
+
                           return (
-                            <Space size={2}>
+                            <Space size={2} wrap>
                               <Button
                                 type="link"
                                 size="small"
@@ -539,6 +850,34 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                               >
                                 查看 ({fileCount})
                               </Button>
+                              {fileCount > 0 && (
+                                <Tooltip title={isReady ? '重新下载所有附件' : '一键归档所有附件至本地'}>
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    icon={status?.hasUpdates ? <SyncOutlined /> : <DownloadOutlined />}
+                                    loading={isDownloading}
+                                    style={status?.hasUpdates ? { color: '#fa8c16' } : undefined}
+                                    onClick={() => handleDownloadReport(record)}
+                                  >
+                                    {status?.hasUpdates
+                                      ? '更新'
+                                      : isReady
+                                        ? '重下'
+                                        : '归档'}
+                                  </Button>
+                                </Tooltip>
+                              )}
+                              <Tooltip title="在 Windows 资源管理器中打开报告文件夹">
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<FolderOpenOutlined />}
+                                  onClick={() => handleOpenReportFolder(record)}
+                                >
+                                  定位
+                                </Button>
+                              </Tooltip>
                               <Button
                                 type="link"
                                 size="small"
@@ -610,33 +949,155 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           <Space>
             <FileSearchOutlined style={{ color: '#1890ff' }} />
             <span>报告原件与附件预览</span>
+            {activeReportForPreview?.reportName && (
+              <Text type="secondary" style={{ fontSize: 13, fontWeight: 'normal' }}>
+                - {activeReportForPreview.reportName}
+              </Text>
+            )}
           </Space>
         }
         open={previewVisible}
-        onCancel={() => setPreviewVisible(false)}
+        onCancel={() => {
+          setPreviewVisible(false)
+          setActiveReportForPreview(null)
+        }}
         footer={[
-          <Button key="close" onClick={() => setPreviewVisible(false)}>
+          activeReportForPreview && (
+            <Button
+              key="download-all"
+              icon={<DownloadOutlined />}
+              loading={downloadingReportId === (activeReportForPreview.reportId ?? activeReportForPreview.id)}
+              onClick={() => handleDownloadReport(activeReportForPreview)}
+            >
+              {reportStatusMap[String(activeReportForPreview.reportId ?? activeReportForPreview.id)]?.allDownloaded
+                ? '重新下载全部附件'
+                : '一键归档全部附件'}
+            </Button>
+          ),
+          activeReportForPreview && (
+            <Button
+              key="open-dir"
+              icon={<FolderOpenOutlined />}
+              onClick={() => handleOpenReportFolder(activeReportForPreview)}
+            >
+              打开所在文件夹
+            </Button>
+          ),
+          <Button
+            key="close"
+            type="primary"
+            onClick={() => {
+              setPreviewVisible(false)
+              setActiveReportForPreview(null)
+            }}
+          >
             关闭
           </Button>,
         ]}
-        width={620}
+        width={680}
       >
+        {activeReportForPreview && (
+          <div
+            style={{
+              background: '#f6f9fc',
+              padding: '8px 12px',
+              borderRadius: 6,
+              marginBottom: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 12,
+              border: '1px solid #e6f0fa',
+            }}
+          >
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8, flex: 1 }}>
+              <Text type="secondary">本地归档目录：</Text>
+              <Text
+                code
+                copyable={{
+                  text: reportStatusMap[String(activeReportForPreview.reportId ?? activeReportForPreview.id)]?.reportDir || '',
+                }}
+              >
+                {reportStatusMap[String(activeReportForPreview.reportId ?? activeReportForPreview.id)]?.reportDir || '检测中...'}
+              </Text>
+            </div>
+            <Button
+              type="link"
+              size="small"
+              icon={<FolderOpenOutlined />}
+              style={{ padding: 0 }}
+              onClick={() => handleOpenReportFolder(activeReportForPreview)}
+            >
+              打开目录
+            </Button>
+          </div>
+        )}
+
         {pictureFiles.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>
-              体检图片 ({pictureFiles.length} 张，点击图片可放大缩放预览)
-            </Text>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text strong>
+                体检图片 ({pictureFiles.length} 张，点击图片可放大缩放预览)
+              </Text>
+            </div>
             <Image.PreviewGroup>
-              <Space wrap size={[10, 10]}>
-                {pictureFiles.map((url, idx) => (
-                  <Image
-                    key={idx}
-                    width={110}
-                    height={110}
-                    src={url}
-                    style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #e8e8e8' }}
-                  />
-                ))}
+              <Space wrap size={[12, 12]}>
+                {pictureFiles.map((url, idx) => {
+                  const repId = activeReportForPreview ? String(activeReportForPreview.reportId ?? activeReportForPreview.id) : ''
+                  const st = reportStatusMap[repId]
+                  const matched = st?.files?.find(f => f.url === url)
+                  const isLocal = matched?.exists
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        width: 120,
+                        padding: 6,
+                        border: '1px solid #f0f0f0',
+                        borderRadius: 6,
+                        background: '#fafafa',
+                      }}
+                    >
+                      <Image
+                        width={108}
+                        height={108}
+                        src={url}
+                        style={{ objectFit: 'cover', borderRadius: 4 }}
+                      />
+                      <div style={{ marginTop: 6, width: '100%', textAlign: 'center' }}>
+                        {isLocal ? (
+                          <Space size={2}>
+                            <Tag color="success" style={{ margin: 0, fontSize: 10 }}>已归档</Tag>
+                            <Tooltip title="在文件夹中定位此图片">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<FolderViewOutlined />}
+                                style={{ padding: '0 4px', fontSize: 12 }}
+                                onClick={() => matched && handleOpenLocalExistingFolder(matched.localPath)}
+                              />
+                            </Tooltip>
+                          </Space>
+                        ) : (
+                          <Button
+                            type="link"
+                            size="small"
+                            icon={<DownloadOutlined />}
+                            loading={singleFileLoading[url]}
+                            style={{ padding: 0, fontSize: 11 }}
+                            onClick={() => activeReportForPreview && handleDownloadAndOpenFile(activeReportForPreview, url)}
+                          >
+                            下载并打开
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </Space>
             </Image.PreviewGroup>
           </div>
@@ -649,25 +1110,76 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
             </Text>
             <Space direction="vertical" style={{ width: '100%' }}>
               {documentFiles.map((url, idx) => {
-                const fileName = url.split('/').pop() || `附件_${idx + 1}`
+                const fileName = url.split('?')[0].split('/').pop() || `附件_${idx + 1}`
+                const repId = activeReportForPreview ? String(activeReportForPreview.reportId ?? activeReportForPreview.id) : ''
+                const st = reportStatusMap[repId]
+                const matched = st?.files?.find(f => f.url === url)
+                const isLocal = matched?.exists
+
                 return (
-                  <Card key={idx} size="small" style={{ background: '#fafafa' }}>
+                  <Card key={idx} size="small" style={{ background: '#fafafa', border: '1px solid #f0f0f0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Space>
-                        <FilePdfOutlined style={{ color: '#ff4d4f', fontSize: 18 }} />
-                        <Text ellipsis style={{ maxWidth: 360 }}>
-                          {fileName}
-                        </Text>
+                        <FilePdfOutlined style={{ color: '#ff4d4f', fontSize: 22 }} />
+                        <div>
+                          <div style={{ fontWeight: 500, fontSize: 13 }}>
+                            {fileName}
+                            {isLocal ? (
+                              <Tag color="success" style={{ marginLeft: 8 }}>
+                                本地已就绪 {matched?.fileSize ? `(${Math.round(matched.fileSize / 1024)} KB)` : ''}
+                              </Tag>
+                            ) : (
+                              <Tag color="default" style={{ marginLeft: 8 }}>未下载到本地</Tag>
+                            )}
+                          </div>
+                          {isLocal && (
+                            <div style={{ fontSize: 11, color: '#888', marginTop: 2, wordBreak: 'break-all' }}>
+                              路径: {matched.localPath}
+                            </div>
+                          )}
+                        </div>
                       </Space>
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<DownloadOutlined />}
-                        href={url}
-                        target="_blank"
-                      >
-                        在线查看 / 下载
-                      </Button>
+                      <Space>
+                        {isLocal ? (
+                          <>
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<FileSearchOutlined />}
+                              onClick={() => handleOpenLocalExistingFile(matched.localPath)}
+                            >
+                              本地秒开
+                            </Button>
+                            <Tooltip title="在文件夹中选中此文件">
+                              <Button
+                                size="small"
+                                icon={<FolderViewOutlined />}
+                                onClick={() => handleOpenLocalExistingFolder(matched.localPath)}
+                              >
+                                定位
+                              </Button>
+                            </Tooltip>
+                            <Tooltip title="重新从云端下载并覆盖">
+                              <Button
+                                size="small"
+                                icon={<SyncOutlined />}
+                                loading={singleFileLoading[url]}
+                                onClick={() => activeReportForPreview && handleDownloadAndOpenFile(activeReportForPreview, url)}
+                              />
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<DownloadOutlined />}
+                            loading={singleFileLoading[url]}
+                            onClick={() => activeReportForPreview && handleDownloadAndOpenFile(activeReportForPreview, url)}
+                          >
+                            下载至本地并打开
+                          </Button>
+                        )}
+                      </Space>
                     </div>
                   </Card>
                 )
@@ -680,6 +1192,12 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           <Empty description="该报告暂无可预览的附件" />
         )}
       </Modal>
+
+      {/* 存储设置弹窗 */}
+      <ReportStorageSettingModal
+        visible={storageModalVisible}
+        onClose={() => setStorageModalVisible(false)}
+      />
 
       {/* 报告诊评意见弹窗 */}
       <Modal
