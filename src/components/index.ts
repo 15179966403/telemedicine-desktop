@@ -46,5 +46,8 @@ export { ConfirmDialog, useConfirmDialog } from './ConfirmDialog'
 // 性能优化组件
 export { VirtualList, DynamicVirtualList } from './VirtualList'
 
+// 报告存储设置组件
+export { ReportStorageSettingModal } from './ReportStorageSettingModal'
+
 // 导航组件
 export { BackButton } from './BackButton'
