@@ -997,3 +997,46 @@ pub async fn clean_single_scheme_file(
 
     Ok(true)
 }
+
+/// 15. 读取本地或下载远程 PDF 文件的二进制字节流（彻底规避 WebView2 iframe 限制和跨域 CORS 拦截）
+#[tauri::command]
+pub async fn get_pdf_file_bytes(
+    file_url_or_path: String,
+) -> Result<Vec<u8>, String> {
+    let trimmed = file_url_or_path.trim();
+
+    // 1. 如果是本地路径且文件存在，直接从本地读取
+    let local_path = PathBuf::from(trimmed);
+    if local_path.is_file() && local_path.exists() {
+        return tokio::fs::read(&local_path)
+            .await
+            .map_err(|e| format!("读取本地 PDF 文件失败: {}", e));
+    }
+
+    // 2. 如果是 HTTP/HTTPS 远程链接，通过 reqwest 后端下载字节流（无视任何跨域与 iframe 限制）
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+        let response = client
+            .get(trimmed)
+            .send()
+            .await
+            .map_err(|e| format!("获取远程 PDF 失败: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("获取 PDF 失败，服务器返回 HTTP {}", response.status()));
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("读取 PDF 数据流失败: {}", e))?;
+
+        return Ok(bytes.to_vec());
+    }
+
+    Err(format!("无效的 PDF 文件路径或链接: {}", trimmed))
+}

@@ -97,6 +97,7 @@ pub fn run() {
             check_scheme_file_status,
             download_scheme_file,
             clean_single_scheme_file,
+            get_pdf_file_bytes,
 
             // 数据库相关命令
             init_database,

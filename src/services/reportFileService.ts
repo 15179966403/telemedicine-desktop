@@ -327,4 +327,21 @@ export class ReportFileService {
       throw error instanceof Error ? error : new Error(String(error))
     }
   }
+
+  /**
+   * 15. 读取本地或远程 PDF 文件的二进制数据（彻底解决 WebView2 iframe 拦截与跨域问题）
+   */
+  async getPdfFileBytes(fileUrlOrPath: string): Promise<Uint8Array> {
+    try {
+      const bytes = await invoke<number[]>('get_pdf_file_bytes', {
+        fileUrlOrPath,
+      })
+      return new Uint8Array(bytes)
+    } catch (error) {
+      console.warn('invoke get_pdf_file_bytes failed, trying fallback fetch:', error)
+      const res = await fetch(fileUrlOrPath)
+      const buf = await res.arrayBuffer()
+      return new Uint8Array(buf)
+    }
+  }
 }

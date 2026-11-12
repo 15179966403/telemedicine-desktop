@@ -23,6 +23,7 @@ import type { HealthSchemeRecord } from '@/types'
 import { PatientService } from '@/services/patientService'
 import { ReportFileService, SchemeStatusResult } from '@/services/reportFileService'
 import { buildHealthSchemeFileName, downloadFile } from '@/utils/helpers'
+import { PdfViewer } from '@/components/PdfViewer'
 
 export interface HealthSchemePreviewModalProps {
   visible: boolean
@@ -281,13 +282,11 @@ export const HealthSchemePreviewModal: React.FC<HealthSchemePreviewModalProps> =
       ]}
     >
       {activePdfUrl ? (
-        <div style={{ height: '72vh', width: '100%', background: '#fff', borderRadius: 4, overflow: 'hidden' }}>
-          <iframe
-            src={activePdfUrl}
-            title="健管方案 PDF 预览"
-            width="100%"
+        <div style={{ height: '74vh', width: '100%', background: '#fff', borderRadius: 4, overflow: 'hidden' }}>
+          <PdfViewer
+            fileUrl={localStatus?.exists && localStatus.localPath ? localStatus.localPath : activePdfUrl}
+            watermarkText={`仅供内部健管查阅 · ${custName}`}
             height="100%"
-            style={{ border: 'none' }}
           />
         </div>
       ) : (

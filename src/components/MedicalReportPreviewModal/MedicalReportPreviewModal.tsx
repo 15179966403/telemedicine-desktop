@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons'
 import type { MedicalReport } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
+import { PdfViewer } from '@/components/PdfViewer'
 
 const { Text } = Typography
 
@@ -382,14 +383,12 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
                 <Empty description="该体检报告记录未包含有效报告原件文件" />
               </div>
             ) : isPdfFile ? (
-              // 1. PDF 报告：通过 WebView2 内存直接流式渲染，#toolbar=0 禁用原生保存/打印工具条
+              // 1. PDF 报告：通过 Mozilla PDF.js 内存解析渲染，无任何跨域或 WebView2 iframe 限制
               <div style={{ height: '100%', width: '100%', background: '#525659' }}>
-                <iframe
-                  src={`${activeUrl}#toolbar=0&navpanes=0`}
-                  title="体检报告在线预览"
-                  width="100%"
+                <PdfViewer
+                  fileUrl={activeUrl}
+                  watermarkText={watermarkText}
                   height="100%"
-                  style={{ border: 'none' }}
                 />
               </div>
             ) : isImageFile ? (
