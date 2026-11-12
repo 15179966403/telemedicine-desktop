@@ -91,6 +91,9 @@ pub fn run() {
             download_batch_report_files,
             open_report_local_file,
             open_report_local_folder,
+            clean_single_report_files,
+            clean_customer_report_files,
+            clean_all_report_files,
 
             // 数据库相关命令
             init_database,

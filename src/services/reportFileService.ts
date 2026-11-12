@@ -67,6 +67,11 @@ export interface DownloadResult {
   error?: string
 }
 
+export interface CleanAllResult {
+  cleanedItemsCount: number
+  config: ReportStorageConfig
+}
+
 export class ReportFileService {
   private static instance: ReportFileService
 
@@ -190,6 +195,56 @@ export class ReportFileService {
       })
     } catch (error) {
       console.error('open_report_local_folder failed:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 9. 清理单份体检报告在本地磁盘的下载文件与目录
+   */
+  async cleanSingleReportFiles(params: CheckReportStatusParams): Promise<boolean> {
+    try {
+      return await invoke<boolean>('clean_single_report_files', {
+        params: {
+          ...params,
+          customerId: String(params.customerId),
+          reportId: String(params.reportId),
+        },
+      })
+    } catch (error) {
+      console.error('clean_single_report_files failed:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 10. 清理某个客户名下的所有已归档本地报告目录与文件
+   */
+  async cleanCustomerReportFiles(
+    customerName: string,
+    mobile: string,
+    customerId: string | number
+  ): Promise<boolean> {
+    try {
+      return await invoke<boolean>('clean_customer_report_files', {
+        customerName,
+        mobile,
+        customerId: String(customerId),
+      })
+    } catch (error) {
+      console.error('clean_customer_report_files failed:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 11. 一键清理存储根目录下的所有本地报告缓存与文件（彻底擦除磁盘数据）
+   */
+  async cleanAllReportFiles(): Promise<CleanAllResult> {
+    try {
+      return await invoke<CleanAllResult>('clean_all_report_files')
+    } catch (error) {
+      console.error('clean_all_report_files failed:', error)
       throw error instanceof Error ? error : new Error(String(error))
     }
   }

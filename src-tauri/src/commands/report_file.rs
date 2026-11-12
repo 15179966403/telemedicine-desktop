@@ -699,3 +699,107 @@ pub async fn open_report_local_folder(
 
     Ok(())
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CleanAllResult {
+    #[serde(rename = "cleanedItemsCount")]
+    pub cleaned_items_count: usize,
+    pub config: ReportStorageConfig,
+}
+
+/// 9. 清理单份体检报告在本地磁盘的下载文件与目录
+#[tauri::command]
+pub async fn clean_single_report_files(
+    app: AppHandle,
+    params: CheckReportStatusParams,
+) -> Result<bool, String> {
+    let (root, _) = resolve_current_root_dir(&app);
+    let (customer_dir, report_dir) = build_report_dir_paths(
+        &root,
+        &params.customer_name,
+        &params.mobile,
+        &params.customer_id,
+        &params.report_id,
+        params.report_date.as_deref(),
+        params.medical_org.as_deref(),
+    );
+
+    // 安全校验：待删除路径必须在根目录内且存在
+    if report_dir.starts_with(&root) && report_dir.exists() {
+        std::fs::remove_dir_all(&report_dir)
+            .map_err(|e| format!("删除本地报告文件失败: {}", e))?;
+    }
+
+    // 若客户目录下已无其他报告子目录，顺带清理空的客户目录
+    if customer_dir.starts_with(&root) && customer_dir.exists() {
+        if let Ok(mut entries) = std::fs::read_dir(&customer_dir) {
+            if entries.next().is_none() {
+                let _ = std::fs::remove_dir(&customer_dir);
+            }
+        }
+    }
+
+    Ok(true)
+}
+
+/// 10. 清理某个客户名下的所有已归档本地报告目录与文件
+#[tauri::command]
+pub async fn clean_customer_report_files(
+    app: AppHandle,
+    customer_name: String,
+    mobile: String,
+    customer_id: String,
+) -> Result<bool, String> {
+    let (root, _) = resolve_current_root_dir(&app);
+    let clean_name = sanitize_name(&customer_name);
+    let mobile_tail = if mobile.len() >= 4 {
+        &mobile[mobile.len() - 4..]
+    } else {
+        &mobile
+    };
+    let customer_folder_name = format!("{}_{}_{}", clean_name, mobile_tail, customer_id);
+    let customer_dir = root.join(customer_folder_name);
+
+    if customer_dir.starts_with(&root) && customer_dir.exists() {
+        std::fs::remove_dir_all(&customer_dir)
+            .map_err(|e| format!("删除客户所有本地报告文件失败: {}", e))?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// 11. 一键清理存储根目录下的所有本地报告缓存与文件（彻底擦除磁盘数据）
+#[tauri::command]
+pub async fn clean_all_report_files(app: AppHandle) -> Result<CleanAllResult, String> {
+    let (root, is_custom) = resolve_current_root_dir(&app);
+    let mut count = 0;
+    if root.exists() {
+        if let Ok(entries) = std::fs::read_dir(&root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    if std::fs::remove_dir_all(&path).is_ok() {
+                        count += 1;
+                    }
+                } else if path.is_file() {
+                    if std::fs::remove_file(&path).is_ok() {
+                        count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let free_bytes = get_disk_free_bytes(&root);
+    let free_gb = (free_bytes as f64) / (1024.0 * 1024.0 * 1024.0);
+
+    Ok(CleanAllResult {
+        cleaned_items_count: count,
+        config: ReportStorageConfig {
+            root_path: root.to_string_lossy().to_string(),
+            disk_free_bytes: free_bytes,
+            disk_free_gb: (free_gb * 100.0).round() / 100.0,
+            is_custom,
+        },
+    })
+}

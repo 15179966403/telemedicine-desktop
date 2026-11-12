@@ -9,6 +9,7 @@ import {
   Descriptions,
   Tag,
   Spin,
+  Popconfirm,
   message,
 } from 'antd'
 import {
@@ -17,6 +18,8 @@ import {
   HddOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
+  DeleteOutlined,
+  ClearOutlined,
 } from '@ant-design/icons'
 import { ReportFileService, ReportStorageConfig } from '@/services'
 
@@ -26,15 +29,18 @@ interface ReportStorageSettingModalProps {
   visible: boolean
   onClose: () => void
   onSaved?: (newPath: string) => void
+  onCleaned?: () => void
 }
 
 export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps> = ({
   visible,
   onClose,
   onSaved,
+  onCleaned,
 }) => {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
   const [config, setConfig] = useState<ReportStorageConfig | null>(null)
   const [currentPath, setCurrentPath] = useState('')
 
@@ -102,6 +108,24 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
       message.error(`保存失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  // 一键清理本地所有报告文件
+  const handleCleanAllFiles = async () => {
+    setCleaning(true)
+    try {
+      const res = await reportFileService.cleanAllReportFiles()
+      setConfig(res.config)
+      message.success(
+        `本地体检报告文件已清理完成（已清除 ${res.cleanedItemsCount} 项文件/目录，磁盘已释放）`
+      )
+      onCleaned?.()
+    } catch (err) {
+      console.error('清理本地文件失败:', err)
+      message.error(`清理失败: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setCleaning(false)
     }
   }
 
@@ -198,6 +222,42 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
             </Descriptions>
           )}
 
+          {/* 本地文件清除与合规清理模块 */}
+          <div
+            style={{
+              background: '#fff2f0',
+              padding: '12px 14px',
+              borderRadius: 6,
+              border: '1px solid #ffccc7',
+              marginBottom: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 600, color: '#cf1322', fontSize: 13, marginBottom: 2 }}>
+                <ClearOutlined style={{ marginRight: 6 }} />
+                本地电脑报告文件清理
+              </div>
+              <div style={{ fontSize: 12, color: '#820014' }}>
+                按合规要求或需释放空间时，可一键删除本机所有已下载的体检报告原件
+              </div>
+            </div>
+            <Popconfirm
+              title="确定要彻底清除本地所有体检报告文件吗？"
+              description="清除后本地电脑将不再留存任何客户体检报告文件，如需再次查看可直接在线安全预览或重新下载。"
+              okText="确认彻底清理"
+              cancelText="取消"
+              okButtonProps={{ danger: true, loading: cleaning }}
+              onConfirm={handleCleanAllFiles}
+            >
+              <Button danger icon={<DeleteOutlined />} loading={cleaning}>
+                一键清理本地文件
+              </Button>
+            </Popconfirm>
+          </div>
+
           <div
             style={{
               background: '#fafafa',
@@ -210,7 +270,7 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
           >
             <div>
               💡 <strong>提示：</strong>
-              修改保存路径后，新下载的报告将存入新目录；先前已下载的历史报告文件仍保留在原目录中。
+              修改保存路径后，新下载的报告将存入新目录；先前已下载的历史报告文件仍保留在原目录中。如需清理电脑残留，可点击上方“一键清理”。
             </div>
           </div>
         </div>

@@ -18,6 +18,8 @@ import {
   Table,
   Select,
   Badge,
+  Tooltip,
+  Popconfirm,
   message,
 } from 'antd'
 import {
@@ -34,12 +36,19 @@ import {
   UploadOutlined,
   ProfileOutlined,
   SolutionOutlined,
+  FolderOpenOutlined,
+  SettingOutlined,
+  CheckCircleOutlined,
+  SyncOutlined,
+  DownloadOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons'
 import type { CustomerRecord, Patient, MedicalReport, QuestionnaireRecord, HealthSchemeRecord } from '@/types'
 import { PatientService } from '@/services/patientService'
-import { DictService, type DictItem } from '@/services'
+import { ReportFileService, ReportStatusResult, DictService, type DictItem } from '@/services'
 import { UploadMedicalReportModal } from '@/components/UploadMedicalReportModal'
 import { MedicalReportPreviewModal } from '@/components/MedicalReportPreviewModal'
+import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { QuestionnaireDetailModal } from '@/components/QuestionnaireDetailModal'
 import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/HealthScheme'
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
@@ -67,6 +76,11 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [profileData, setProfileData] = useState<CustomerRecord | null>(null)
   const [reports, setReports] = useState<MedicalReport[]>([])
   const [reportsLoading, setReportsLoading] = useState(false)
+  const [reportStatusMap, setReportStatusMap] = useState<Record<string, ReportStatusResult>>({})
+  const [downloadingReportId, setDownloadingReportId] = useState<string | number | null>(null)
+  const [storageModalVisible, setStorageModalVisible] = useState(false)
+  const [cleaningReportId, setCleaningReportId] = useState<string | number | null>(null)
+  const [cleaningCustomerId, setCleaningCustomerId] = useState(false)
   const [uploadModalVisible, setUploadModalVisible] = useState(false)
   const [reportPreviewVisible, setReportPreviewVisible] = useState(false)
   const [selectedReportForPreview, setSelectedReportForPreview] = useState<MedicalReport | null>(null)
@@ -130,6 +144,37 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         }
       : null)
 
+  const reportFileService = ReportFileService.getInstance()
+
+  // 批量检查体检报告本地存储与更新状态
+  const checkReportsStatus = async (reportList: MedicalReport[], cust: CustomerRecord) => {
+    if (!reportList || reportList.length === 0) return
+    const newMap: Record<string, ReportStatusResult> = {}
+    await Promise.allSettled(
+      reportList.map(async r => {
+        const rawId = r.reportId ?? r.id
+        if (!rawId) return
+        const key = String(rawId)
+        try {
+          const st = await reportFileService.checkReportStatus({
+            customerId: cust.id ?? cust.customerId ?? '',
+            customerName: cust.customerName || '未命名',
+            mobile: cust.mobile || '',
+            reportId: rawId,
+            reportDate: r.reportTime || r.uploadTime || r.createTime,
+            medicalOrg: r.medicalOrg,
+            fileUrls: Array.isArray(r.fileUrls) ? r.fileUrls : [],
+            remoteUpdateTime: r.updateTime || r.uploadTime || r.createTime,
+          })
+          newMap[key] = st
+        } catch (e) {
+          console.warn('Check report file status failed for reportId:', rawId, e)
+        }
+      })
+    )
+    setReportStatusMap(prev => ({ ...prev, ...newMap }))
+  }
+
   // 当抽屉打开时加载档案详情及体检报告列表（对接后台 /admin/peCustomer/reportPageList）
   useEffect(() => {
     if (visible && activeCustomer) {
@@ -164,6 +209,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
             try {
               const reportList = await patientService.fetchCustomerReports(systemArchiveId)
               setReports(reportList || [])
+              if (reportList && reportList.length > 0) {
+                checkReportsStatus(reportList, loadedCust)
+              }
             } catch (err) {
               console.warn('Load customer reports failed:', err)
               setReports([])
@@ -185,6 +233,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
             try {
               const reportList = await patientService.fetchCustomerReports(fallbackArchiveId)
               setReports(reportList || [])
+              if (reportList && reportList.length > 0) {
+                checkReportsStatus(reportList, activeCustomer)
+              }
             } catch {
               setReports([])
             } finally {
@@ -201,6 +252,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       setDoctorMemo('')
       setReportPreviewVisible(false)
       setSelectedReportForPreview(null)
+      setReportStatusMap({})
       setQuestionnaires([])
       setSelectedQuestionnaireId(null)
       setQuestionnaireModalVisible(false)
@@ -371,6 +423,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         const list = res || []
         setReports(list)
         message.success('体检报告列表已刷新')
+        if (list.length > 0) {
+          checkReportsStatus(list, cust)
+        }
       })
       .catch(err => {
         console.warn('Refresh reports failed:', err)
@@ -381,7 +436,177 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       })
   }
 
-  // 打开体检报告安全在线预览（纯内存流式渲染，动态防拍照水印，禁止磁盘落盘）
+  // 下载整份报告的所有附件并归档到本地
+  const handleDownloadReport = async (record: MedicalReport) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const rawId = record.reportId ?? record.id
+    if (!rawId) {
+      message.warning('缺少报告编号')
+      return
+    }
+    const urls = Array.isArray(record.fileUrls) ? record.fileUrls : []
+    if (urls.length === 0) {
+      message.info('该报告暂无源附件文件')
+      return
+    }
+
+    setDownloadingReportId(rawId)
+    const key = String(rawId)
+    try {
+      const resList = await reportFileService.downloadBatchFiles({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: urls,
+      })
+
+      const successCount = resList.filter(r => r.success).length
+      const failedCount = resList.filter(r => !r.success).length
+
+      if (failedCount === 0) {
+        message.success(`体检报告附件下载完成 (${successCount} 个文件已归档至电脑)`)
+      } else {
+        message.warning(`归档完成：成功 ${successCount} 个，失败 ${failedCount} 个`)
+      }
+
+      // 重新检查状态并更新
+      const updatedStatus = await reportFileService.checkReportStatus({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: urls,
+        remoteUpdateTime: record.updateTime || record.uploadTime || record.createTime,
+      })
+      setReportStatusMap(prev => ({ ...prev, [key]: updatedStatus }))
+    } catch (err: any) {
+      message.error(`报告归档失败: ${err?.message || err}`)
+    } finally {
+      setDownloadingReportId(null)
+    }
+  }
+
+  // 打开指定报告的本地目录
+  const handleOpenReportFolder = async (record: MedicalReport) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const rawId = record.reportId ?? record.id
+    if (!rawId) {
+      message.warning('缺少报告编号')
+      return
+    }
+    const key = String(rawId)
+    let status = reportStatusMap[key]
+
+    try {
+      if (!status || !status.reportDir) {
+        status = await reportFileService.checkReportStatus({
+          customerId: cust.id ?? cust.customerId ?? '',
+          customerName: cust.customerName || '未命名',
+          mobile: cust.mobile || '',
+          reportId: rawId,
+          reportDate: record.reportTime || record.uploadTime || record.createTime,
+          medicalOrg: record.medicalOrg,
+          fileUrls: Array.isArray(record.fileUrls) ? record.fileUrls : [],
+          remoteUpdateTime: record.updateTime || record.uploadTime || record.createTime,
+        })
+        setReportStatusMap(prev => ({ ...prev, [key]: status }))
+      }
+
+      await reportFileService.openLocalFolder(status.reportDir)
+    } catch (err: any) {
+      message.error(`打开本地目录失败: ${err?.message || err}`)
+    }
+  }
+
+  // 打开该客户专属的报告归档根目录
+  const handleOpenCustomerFolder = async () => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    try {
+      const dummyStatus = await reportFileService.checkReportStatus({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: '__customer_root__',
+        fileUrls: [],
+      })
+      const custDir = dummyStatus.reportDir.replace(/[\\/][^\\/]+$/, '')
+      await reportFileService.openLocalFolder(custDir)
+    } catch (err: any) {
+      message.error(`打开客户报告目录失败: ${err?.message || err}`)
+    }
+  }
+
+  // 清除单份体检报告在电脑上的本地下载文件
+  const handleCleanSingleReport = async (record: MedicalReport) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const rawId = record.reportId ?? record.id
+    if (!rawId) return
+    const key = String(rawId)
+
+    setCleaningReportId(rawId)
+    try {
+      await reportFileService.cleanSingleReportFiles({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: Array.isArray(record.fileUrls) ? record.fileUrls : [],
+      })
+      message.success('已删除该份报告在电脑上的本地文件')
+      // 刷新本地状态
+      const updatedStatus = await reportFileService.checkReportStatus({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: cust.customerName || '未命名',
+        mobile: cust.mobile || '',
+        reportId: rawId,
+        reportDate: record.reportTime || record.uploadTime || record.createTime,
+        medicalOrg: record.medicalOrg,
+        fileUrls: Array.isArray(record.fileUrls) ? record.fileUrls : [],
+        remoteUpdateTime: record.updateTime || record.uploadTime || record.createTime,
+      })
+      setReportStatusMap(prev => ({ ...prev, [key]: updatedStatus }))
+    } catch (err: any) {
+      message.error(`清理本地报告失败: ${err?.message || err}`)
+    } finally {
+      setCleaningReportId(null)
+    }
+  }
+
+  // 清除当前客户名下的所有已下载本地报告文件
+  const handleCleanCustomerReports = async () => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    setCleaningCustomerId(true)
+    try {
+      await reportFileService.cleanCustomerReportFiles(
+        cust.customerName || '未命名',
+        cust.mobile || '',
+        cust.id ?? cust.customerId ?? ''
+      )
+      message.success('已彻底清理该客户在本地电脑上的所有体检报告文件')
+      // 重新检查所有报告状态
+      if (reports.length > 0) {
+        checkReportsStatus(reports, cust)
+      }
+    } catch (err: any) {
+      message.error(`清理客户本地文件失败: ${err?.message || err}`)
+    } finally {
+      setCleaningCustomerId(false)
+    }
+  }
+
+  // 打开体检报告安全在线预览
   const handleOpenReportPreview = (record: MedicalReport) => {
     const urls = Array.isArray(record.fileUrls) ? record.fileUrls : []
     if (urls.length === 0) {
@@ -633,9 +858,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                     }}
                   >
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      历次体检报告与指标原件。为保障客户健康数据合规与私密，采用纯内存流式安全阅览，禁止落地保存至本地电脑
+                      历次体检报告与指标原件。支持纯内存流式安全阅览与本地智能归档，并提供一键清理磁盘文件功能
                     </Text>
-                    <Space size="small">
+                    <Space size="small" wrap>
                       <Button
                         type="primary"
                         size="small"
@@ -644,6 +869,37 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       >
                         上传报告
                       </Button>
+                      <Button
+                        size="small"
+                        icon={<FolderOpenOutlined />}
+                        onClick={handleOpenCustomerFolder}
+                      >
+                        打开客户报告目录
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<SettingOutlined />}
+                        onClick={() => setStorageModalVisible(true)}
+                      >
+                        存储与清理设置
+                      </Button>
+                      <Popconfirm
+                        title="确定清理该客户在本地电脑上的所有报告文件？"
+                        description="清理后该客户在本地电脑的报告文件将被彻底删除，随时可重新下载或在线预览。"
+                        okText="确定清理"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true, loading: cleaningCustomerId }}
+                        onConfirm={handleCleanCustomerReports}
+                      >
+                        <Button
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          loading={cleaningCustomerId}
+                        >
+                          清理该客户文件
+                        </Button>
+                      </Popconfirm>
                       <Button
                         size="small"
                         icon={<ReloadOutlined spin={reportsLoading} />}
@@ -660,7 +916,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         title: '报告名称 / 编号',
                         dataIndex: 'reportId',
                         key: 'reportId',
-                        width: 160,
+                        width: 150,
                         render: (text: any, record: MedicalReport) => (
                           <div>
                             <Text strong style={{ fontSize: 13 }}>
@@ -695,7 +951,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       {
                         title: '机构 / 日期',
                         key: 'orgTime',
-                        minWidth: 130,
+                        minWidth: 120,
                         render: (_: any, record: MedicalReport) => (
                           <div style={{ fontSize: 12 }}>
                             <div style={{ fontWeight: 500, color: '#333' }}>
@@ -711,7 +967,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       {
                         title: '附件原件',
                         key: 'fileCount',
-                        width: 120,
+                        width: 110,
                         render: (_: any, record: MedicalReport) => {
                           const urls = Array.isArray(record.fileUrls) ? record.fileUrls : []
                           if (urls.length === 0) {
@@ -731,6 +987,60 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         },
                       },
                       {
+                        title: '本地归档状态',
+                        key: 'localStatus',
+                        width: 130,
+                        render: (_: any, record: MedicalReport) => {
+                          const repId = record.reportId ?? record.id
+                          const isDownloading = downloadingReportId === repId
+                          if (isDownloading) {
+                            return <Tag icon={<SyncOutlined spin />} color="processing">同步下载中...</Tag>
+                          }
+                          const status = reportStatusMap[String(repId)]
+                          if (!status) {
+                            return <Text type="secondary" style={{ fontSize: 12 }}>检测中...</Text>
+                          }
+                          const total = status.files?.length || 0
+                          const localCount = status.files?.filter(f => f.exists).length || 0
+
+                          if (total === 0) {
+                            return <Tag color="default">无附件</Tag>
+                          }
+
+                          if (status.hasUpdates) {
+                            return (
+                              <Tooltip title="云端有较新报告或文件更新，建议重新同步">
+                                <Tag icon={<SyncOutlined />} color="warning">
+                                  有更新 ({localCount}/{total})
+                                </Tag>
+                              </Tooltip>
+                            )
+                          }
+
+                          if (status.allDownloaded || (total > 0 && localCount === total)) {
+                            return (
+                              <Tooltip title={`本地已归档 (${localCount}/${total})，存放于: ${status.reportDir}`}>
+                                <Tag icon={<CheckCircleOutlined />} color="success">
+                                  已归档 ({localCount}/{total})
+                                </Tag>
+                              </Tooltip>
+                            )
+                          }
+
+                          if (localCount > 0) {
+                            return (
+                              <Tooltip title={`部分文件已下载 (${localCount}/${total})`}>
+                                <Tag color="orange">
+                                  部分下载 ({localCount}/{total})
+                                </Tag>
+                              </Tooltip>
+                            )
+                          }
+
+                          return <Tag color="default">未下载到本地</Tag>
+                        },
+                      },
+                      {
                         title: 'OCR状态',
                         key: 'orcStatus',
                         width: 80,
@@ -744,20 +1054,75 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       {
                         title: '操作',
                         key: 'action',
-                        width: 120,
+                        width: 235,
                         fixed: 'right' as const,
                         render: (_: any, record: MedicalReport) => {
+                          const repId = record.reportId ?? record.id
                           const fileCount = Array.isArray(record.fileUrls) ? record.fileUrls.length : 0
+                          const status = reportStatusMap[String(repId)]
+                          const isDownloading = downloadingReportId === repId
+                          const isReady = status?.allDownloaded
+                          const hasLocalFiles = isReady || (status?.files?.some(f => f.exists) ?? false)
+
                           return (
-                            <Button
-                              type="primary"
-                              size="small"
-                              icon={<EyeOutlined />}
-                              disabled={fileCount === 0}
-                              onClick={() => handleOpenReportPreview(record)}
-                            >
-                              安全阅览
-                            </Button>
+                            <Space size={2} wrap>
+                              <Button
+                                type="primary"
+                                size="small"
+                                icon={<EyeOutlined />}
+                                disabled={fileCount === 0}
+                                onClick={() => handleOpenReportPreview(record)}
+                              >
+                                安全阅览
+                              </Button>
+
+                              {fileCount > 0 && (
+                                <Tooltip title={isReady ? '重新下载所有附件至电脑' : '一键归档所有附件至本地电脑'}>
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    icon={status?.hasUpdates ? <SyncOutlined /> : <DownloadOutlined />}
+                                    loading={isDownloading}
+                                    style={status?.hasUpdates ? { color: '#fa8c16' } : undefined}
+                                    onClick={() => handleDownloadReport(record)}
+                                  >
+                                    {status?.hasUpdates ? '更新' : isReady ? '重下' : '归档'}
+                                  </Button>
+                                </Tooltip>
+                              )}
+
+                              <Tooltip title="在 Windows 资源管理器中打开报告文件夹">
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<FolderOpenOutlined />}
+                                  onClick={() => handleOpenReportFolder(record)}
+                                >
+                                  定位
+                                </Button>
+                              </Tooltip>
+
+                              {hasLocalFiles && (
+                                <Popconfirm
+                                  title="确定删除此份报告的本地电脑文件？"
+                                  description="删除后仅清除本机电脑文件，云端报告保持完好，随时可重新下载或安全在线预览。"
+                                  okText="删除"
+                                  cancelText="取消"
+                                  okButtonProps={{ danger: true }}
+                                  onConfirm={() => handleCleanSingleReport(record)}
+                                >
+                                  <Tooltip title="清除本地文件 (释放空间并符合合规要求)">
+                                    <Button
+                                      type="text"
+                                      danger
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      loading={cleaningReportId === repId}
+                                    />
+                                  </Tooltip>
+                                </Popconfirm>
+                              )}
+                            </Space>
                           )
                         },
                       },
@@ -1162,13 +1527,38 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         />
       </Spin>
 
-      {/* 体检报告安全在线预览弹窗（防拍摄动态水印，纯内存阅览，禁止落地保存） */}
+      {/* 体检报告在线预览弹窗（超多附件横向平滑滚动切换、防拍摄动态水印、纯内存阅览） */}
       <MedicalReportPreviewModal
         visible={reportPreviewVisible}
         report={selectedReportForPreview}
         onClose={() => {
           setReportPreviewVisible(false)
           setSelectedReportForPreview(null)
+        }}
+        onDownloadReport={handleDownloadReport}
+        onOpenReportFolder={handleOpenReportFolder}
+        isDownloading={Boolean(
+          selectedReportForPreview &&
+            downloadingReportId ===
+              (selectedReportForPreview.reportId ?? selectedReportForPreview.id)
+        )}
+        isLocallyDownloaded={Boolean(
+          selectedReportForPreview &&
+            reportStatusMap[
+              String(selectedReportForPreview.reportId ?? selectedReportForPreview.id)
+            ]?.allDownloaded
+        )}
+      />
+
+      {/* 存储与本地文件清理设置弹窗 */}
+      <ReportStorageSettingModal
+        visible={storageModalVisible}
+        onClose={() => setStorageModalVisible(false)}
+        onCleaned={() => {
+          const cust = profileData || activeCustomer
+          if (cust && reports.length > 0) {
+            checkReportsStatus(reports, cust)
+          }
         }}
       />
 

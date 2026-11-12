@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Modal,
   Watermark,
@@ -7,7 +7,7 @@ import {
   Tag,
   Typography,
   Empty,
-  Segmented,
+  Select,
   Tooltip,
 } from 'antd'
 import {
@@ -21,6 +21,10 @@ import {
   ReloadOutlined,
   LockOutlined,
   CloseOutlined,
+  LeftOutlined,
+  RightOutlined,
+  DownloadOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons'
 import type { MedicalReport } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
@@ -31,16 +35,25 @@ export interface MedicalReportPreviewModalProps {
   visible: boolean
   report: MedicalReport | null
   onClose: () => void
+  onDownloadReport?: (report: MedicalReport) => void
+  onOpenReportFolder?: (report: MedicalReport) => void
+  isDownloading?: boolean
+  isLocallyDownloaded?: boolean
 }
 
 export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps> = ({
   visible,
   report,
   onClose,
+  onDownloadReport,
+  onOpenReportFolder,
+  isDownloading,
+  isLocallyDownloaded,
 }) => {
   const [activeUrlIndex, setActiveUrlIndex] = useState(0)
   const [imageScale, setImageScale] = useState(1)
   const [imageRotation, setImageRotation] = useState(0)
+  const itemRefs = useRef<(HTMLElement | null)[]>([])
 
   const currentUser = useAuthStore(state => state.user)
 
@@ -68,7 +81,7 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
     }
   }, [visible, report])
 
-  // 键盘快捷键拦截（屏蔽 Ctrl+S 保存与 Ctrl+P 打印，符合不落盘安全合规）
+  // 键盘快捷键拦截（屏蔽 Ctrl+S 保存与 Ctrl+P 打印，同时支持左右方向键快捷翻页切换附件）
   useEffect(() => {
     if (!visible) return
 
@@ -76,6 +89,24 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'p')) {
         e.preventDefault()
         e.stopPropagation()
+      } else if (e.key === 'ArrowLeft') {
+        setActiveUrlIndex(prev => {
+          if (prev > 0) {
+            setImageScale(1)
+            setImageRotation(0)
+            return prev - 1
+          }
+          return prev
+        })
+      } else if (e.key === 'ArrowRight') {
+        setActiveUrlIndex(prev => {
+          if (prev < fileUrls.length - 1) {
+            setImageScale(1)
+            setImageRotation(0)
+            return prev + 1
+          }
+          return prev
+        })
       }
     }
 
@@ -83,7 +114,18 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true)
     }
-  }, [visible])
+  }, [visible, fileUrls.length])
+
+  // 当选中的附件变更时，自动平滑横向滚动，确保高亮项居中可见（支持 19+ 份超多附件）
+  useEffect(() => {
+    if (itemRefs.current[activeUrlIndex]) {
+      itemRefs.current[activeUrlIndex]?.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      })
+    }
+  }, [activeUrlIndex])
 
   const activeUrl = fileUrls[activeUrlIndex] || ''
 
@@ -128,26 +170,6 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
     }
   }
 
-  // 附件切换器配置
-  const segmentedOptions = fileUrls.map((url, idx) => {
-    const clean = url.split('?')[0]
-    const ext = clean.split('.').pop()?.toLowerCase() || ''
-    const isPdf = ext === 'pdf'
-    return {
-      label: (
-        <Space size={4}>
-          {isPdf ? (
-            <FilePdfOutlined style={{ color: '#ff4d4f' }} />
-          ) : (
-            <FileImageOutlined style={{ color: '#1890ff' }} />
-          )}
-          <span>附件 {idx + 1} ({isPdf ? 'PDF' : ext.toUpperCase() || '图'})</span>
-        </Space>
-      ),
-      value: idx,
-    }
-  })
-
   return (
     <Modal
       title={
@@ -155,22 +177,22 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
           <Space>
             <FileProtectOutlined style={{ color: '#52c41a', fontSize: 18 }} />
             <span style={{ fontWeight: 600, fontSize: 16 }}>
-              体检报告安全在线预览
+              体检报告在线预览
             </span>
             <span style={{ color: '#666', fontSize: 14 }}>
               - {report?.reportName || report?.alias || '体检报告原件'}
             </span>
             {getReportTypeTag(report?.reportType)}
-            <Tag color="success" icon={<SafetyCertificateOutlined />}>
-              纯内存流式渲染 · 未留存本地电脑
+            <Tag color="cyan" icon={<SafetyCertificateOutlined />}>
+              纯内存安全阅览 · 动态防拍照水印
             </Tag>
           </Space>
         </div>
       }
       open={visible}
       onCancel={onClose}
-      width={980}
-      style={{ top: 20 }}
+      width={1020}
+      style={{ top: 16 }}
       styles={{
         body: {
           padding: 0,
@@ -189,12 +211,36 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
             width: '100%',
           }}
         >
-          <Space size="small">
-            <LockOutlined style={{ color: '#52c41a' }} />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              已遵照医疗敏感信息不落盘规定：已关闭本地下载与另存为，查阅完毕关闭窗口即刻释放内存。
-            </Text>
+          <Space size="middle">
+            <Space size="small">
+              <LockOutlined style={{ color: '#52c41a' }} />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                已添加防拍照溯源盲水印。查阅完毕关闭窗口即释放内存。
+              </Text>
+            </Space>
+
+            {report && onDownloadReport && (
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                loading={isDownloading}
+                onClick={() => onDownloadReport(report)}
+              >
+                {isLocallyDownloaded ? '重新归档至电脑' : '下载归档至电脑'}
+              </Button>
+            )}
+
+            {report && isLocallyDownloaded && onOpenReportFolder && (
+              <Button
+                size="small"
+                icon={<FolderOpenOutlined />}
+                onClick={() => onOpenReportFolder(report)}
+              >
+                打开本地归档目录
+              </Button>
+            )}
           </Space>
+
           <Button type="primary" icon={<CloseOutlined />} onClick={onClose}>
             完成查阅并关闭
           </Button>
@@ -202,34 +248,121 @@ export const MedicalReportPreviewModal: React.FC<MedicalReportPreviewModalProps>
       ]}
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '76vh' }}>
-        {/* 多附件切换导航栏（当存在多张化验单或多份PDF报告时） */}
+        {/* 多附件切换导航栏（解决19+超多附件溢出，支持平滑横向滚动、左右按键翻页与下拉直达） */}
         {fileUrls.length > 1 && (
           <div
             style={{
-              padding: '8px 16px',
+              padding: '6px 12px',
               background: '#fff',
               borderBottom: '1px solid #e8e8e8',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              gap: 8,
+              minWidth: 0,
             }}
           >
-            <Space>
-              <Text strong style={{ fontSize: 13 }}>报告附件列表 ({fileUrls.length} 份)：</Text>
-              <Segmented
+            {/* 左侧：翻页与快速跳转 */}
+            <Space size={4} style={{ flexShrink: 0 }}>
+              <Tooltip title="上一份附件 (或按键盘 ← 键)">
+                <Button
+                  size="small"
+                  icon={<LeftOutlined />}
+                  disabled={activeUrlIndex === 0}
+                  onClick={() => {
+                    setActiveUrlIndex(prev => Math.max(0, prev - 1))
+                    setImageScale(1)
+                    setImageRotation(0)
+                  }}
+                />
+              </Tooltip>
+              <Select
                 size="small"
-                options={segmentedOptions}
                 value={activeUrlIndex}
+                style={{ width: 145 }}
                 onChange={val => {
-                  setActiveUrlIndex(val as number)
+                  setActiveUrlIndex(val)
                   setImageScale(1)
                   setImageRotation(0)
                 }}
+                options={fileUrls.map((url, idx) => {
+                  const ext = url.split('?')[0].split('.').pop()?.toUpperCase() || '文件'
+                  return {
+                    value: idx,
+                    label: `第 ${idx + 1}/${fileUrls.length} 份 (${ext})`,
+                  }
+                })}
               />
+              <Tooltip title="下一份附件 (或按键盘 → 键)">
+                <Button
+                  size="small"
+                  icon={<RightOutlined />}
+                  disabled={activeUrlIndex >= fileUrls.length - 1}
+                  onClick={() => {
+                    setActiveUrlIndex(prev => Math.min(fileUrls.length - 1, prev + 1))
+                    setImageScale(1)
+                    setImageRotation(0)
+                  }}
+                />
+              </Tooltip>
             </Space>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              当前正在查看第 {activeUrlIndex + 1} / {fileUrls.length} 份附件
-            </Text>
+
+            {/* 中间：横向滚动附件药丸按钮列表（自适应 19+ 份超长附件列表） */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                flex: 1,
+                minWidth: 0,
+                padding: '2px 0',
+                scrollbarWidth: 'thin',
+              }}
+            >
+              {fileUrls.map((url, idx) => {
+                const clean = url.split('?')[0]
+                const ext = clean.split('.').pop()?.toUpperCase() || '文件'
+                const isPdf = ext === 'PDF'
+                const isActive = idx === activeUrlIndex
+
+                return (
+                  <Button
+                    key={idx}
+                    ref={el => {
+                      itemRefs.current[idx] = el
+                    }}
+                    size="small"
+                    type={isActive ? 'primary' : 'default'}
+                    icon={
+                      isPdf ? (
+                        <FilePdfOutlined style={{ color: isActive ? '#fff' : '#ff4d4f' }} />
+                      ) : (
+                        <FileImageOutlined style={{ color: isActive ? '#fff' : '#1890ff' }} />
+                      )
+                    }
+                    onClick={() => {
+                      setActiveUrlIndex(idx)
+                      setImageScale(1)
+                      setImageRotation(0)
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      fontWeight: isActive ? 600 : 400,
+                      fontSize: 12,
+                      borderRadius: 14,
+                    }}
+                  >
+                    附件 {idx + 1} ({ext})
+                  </Button>
+                )
+              })}
+            </div>
+
+            {/* 右侧：统计标签 */}
+            <Tag color="blue" style={{ flexShrink: 0, margin: 0 }}>
+              共 {fileUrls.length} 份
+            </Tag>
           </div>
         )}
 
