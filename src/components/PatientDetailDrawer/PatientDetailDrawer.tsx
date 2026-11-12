@@ -45,14 +45,14 @@ import {
 } from '@ant-design/icons'
 import type { CustomerRecord, Patient, MedicalReport, QuestionnaireRecord, HealthSchemeRecord } from '@/types'
 import { PatientService } from '@/services/patientService'
-import { ReportFileService, ReportStatusResult, DictService, type DictItem } from '@/services'
+import { ReportFileService, ReportStatusResult, SchemeStatusResult, DictService, type DictItem } from '@/services'
 import { UploadMedicalReportModal } from '@/components/UploadMedicalReportModal'
 import { MedicalReportPreviewModal } from '@/components/MedicalReportPreviewModal'
 import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { QuestionnaireDetailModal } from '@/components/QuestionnaireDetailModal'
 import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/HealthScheme'
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
-import { downloadFile } from '@/utils/helpers'
+import { downloadFile, buildHealthSchemeFileName } from '@/utils/helpers'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -103,6 +103,8 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [schemePreviewVisible, setSchemePreviewVisible] = useState(false)
   const [schemeEditVisible, setSchemeEditVisible] = useState(false)
   const [downloadingSchemeId, setDownloadingSchemeId] = useState<string | number | null>(null)
+  const [cleaningSchemeId, setCleaningSchemeId] = useState<string | number | null>(null)
+  const [schemeStatusMap, setSchemeStatusMap] = useState<Record<string, SchemeStatusResult>>({})
   const [schemeServiceDict, setSchemeServiceDict] = useState<DictItem[]>([])
 
   // 加载服务类型字典
@@ -263,6 +265,8 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       setSchemePreviewVisible(false)
       setSchemeEditVisible(false)
       setDownloadingSchemeId(null)
+      setCleaningSchemeId(null)
+      setSchemeStatusMap({})
     }
   }, [visible, activeCustomer?.id, activeCustomer?.customerId, activeCustomer?.mobile])
 
@@ -333,6 +337,35 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     }
   }
 
+  // 批量检查健管方案本地存储状态
+  const checkSchemesStatus = async (
+    schemeList: HealthSchemeRecord[],
+    cust: CustomerRecord
+  ) => {
+    if (!schemeList || schemeList.length === 0) return
+    const newMap: Record<string, SchemeStatusResult> = {}
+    await Promise.allSettled(
+      schemeList.map(async s => {
+        if (!s.id) return
+        const key = String(s.id)
+        const fileName = buildHealthSchemeFileName(s)
+        try {
+          const st = await reportFileService.checkSchemeStatus({
+            customerId: cust.id ?? cust.customerId ?? '',
+            customerName: s.customerName || cust.customerName || '客户',
+            mobile: cust.mobile || s.mobile || '',
+            schemeId: s.id,
+            fileName,
+          })
+          newMap[key] = st
+        } catch (e) {
+          console.warn('Check scheme file status failed for schemeId:', s.id, e)
+        }
+      })
+    )
+    setSchemeStatusMap(prev => ({ ...prev, ...newMap }))
+  }
+
   // 获取该客户的健管方案列表
   const fetchCustomerHealthSchemesData = async (targetCustomer?: CustomerRecord | null) => {
     const cust = targetCustomer || profileData || activeCustomer
@@ -348,7 +381,11 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         params.customerName = cust.customerName
       }
       const res = await PatientService.getInstance().fetchHealthSchemeList(params)
-      setSchemes(res.rows || [])
+      const list = res.rows || []
+      setSchemes(list)
+      if (list.length > 0) {
+        checkSchemesStatus(list, cust)
+      }
     } catch (err) {
       console.warn('fetchCustomerHealthSchemesData error:', err)
       setSchemes([])
@@ -366,25 +403,43 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     })
   }
 
-  // 单行下载健管方案并记录下载次数
+  // 单行下载健管方案并归档至本地，并记录下载次数
   const handleDownloadSchemeRow = async (record: HealthSchemeRecord) => {
     const pdfUrl = record.doctorFileUrl || record.fileUrl
     if (!pdfUrl) {
       message.warning('该方案暂无有效 PDF 附件')
       return
     }
+    const cust = profileData || activeCustomer
+    if (!cust) return
 
     try {
       setDownloadingSchemeId(record.id)
-      const custName = record.customerName || record.userName || '客户'
-      const schemeTitle = record.recordsType === 6 ? '安颐健管方案' : '三师健管方案'
-      const timeStr = (record.createTime || '').slice(0, 10).replace(/-/g, '')
-      const fileName = `${custName}_${schemeTitle}_${timeStr || '方案'}.pdf`
+      const fileName = buildHealthSchemeFileName(record)
 
-      // 触发下载
-      downloadFile(pdfUrl, fileName)
+      // 1. 本地归档下载至客户专属目录下的“健管方案”子目录
+      let downloadedLocally = false
+      try {
+        const res = await reportFileService.downloadSchemeFile({
+          customerId: cust.id ?? cust.customerId ?? '',
+          customerName: record.customerName || cust.customerName || '客户',
+          mobile: cust.mobile || record.mobile || '',
+          schemeId: record.id,
+          fileUrl: pdfUrl,
+          fileName,
+        })
+        if (res.success) {
+          downloadedLocally = true
+        }
+      } catch (err) {
+        console.warn('Tauri 方案本地下载失败，降级浏览器下载:', err)
+      }
 
-      // 上报后台增加下载计数
+      if (!downloadedLocally) {
+        downloadFile(pdfUrl, fileName)
+      }
+
+      // 2. 上报后台增加下载计数
       if (record.id) {
         await PatientService.getInstance().recordHealthSchemeDownload(record.id)
         setSchemes(prev =>
@@ -396,11 +451,74 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         )
       }
 
-      message.success('方案已下载并记录下载次数，可直接拖入企业微信发送给客户')
+      // 3. 刷新本地状态
+      await checkSchemesStatus(schemes, cust)
+
+      message.success({
+        content: (
+          <span>
+            <b>方案已保存至本地客户文件夹！</b> 已记录系统下载计数，您可直接将文件发给客户。
+          </span>
+        ),
+        duration: 3,
+      })
     } catch (err) {
       message.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setDownloadingSchemeId(null)
+    }
+  }
+
+  // 在 Windows 资源管理器中打开/定位健管方案文件夹
+  const handleOpenSchemeFolder = async (record: HealthSchemeRecord) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+    const key = String(record.id)
+    let status = schemeStatusMap[key]
+
+    try {
+      if (!status) {
+        const fileName = buildHealthSchemeFileName(record)
+        status = await reportFileService.checkSchemeStatus({
+          customerId: cust.id ?? cust.customerId ?? '',
+          customerName: record.customerName || cust.customerName || '客户',
+          mobile: cust.mobile || record.mobile || '',
+          schemeId: record.id,
+          fileName,
+        })
+        setSchemeStatusMap(prev => ({ ...prev, [key]: status }))
+      }
+
+      await reportFileService.openLocalFolder(
+        status.schemeDir,
+        status.exists ? status.localPath : undefined
+      )
+    } catch (err: any) {
+      message.error(`定位方案文件夹失败: ${err?.message || err}`)
+    }
+  }
+
+  // 清除单份健管方案在电脑上的本地下载文件
+  const handleCleanSingleScheme = async (record: HealthSchemeRecord) => {
+    const cust = profileData || activeCustomer
+    if (!cust) return
+
+    setCleaningSchemeId(record.id)
+    try {
+      const fileName = buildHealthSchemeFileName(record)
+      await reportFileService.cleanSingleSchemeFile({
+        customerId: cust.id ?? cust.customerId ?? '',
+        customerName: record.customerName || cust.customerName || '客户',
+        mobile: cust.mobile || record.mobile || '',
+        schemeId: record.id,
+        fileName,
+      })
+      message.success('已清除该健管方案在本地电脑上的文件')
+      checkSchemesStatus(schemes, cust)
+    } catch (err: any) {
+      message.error(`清除本地方案文件失败: ${err?.message || err}`)
+    } finally {
+      setCleaningSchemeId(null)
     }
   }
 
@@ -594,10 +712,13 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         cust.mobile || '',
         cust.id ?? cust.customerId ?? ''
       )
-      message.success('已彻底清理该客户在本地电脑上的所有体检报告文件')
-      // 重新检查所有报告状态
+      message.success('已彻底清理该客户在本地电脑上的所有档案文件（含体检报告与健管方案）')
+      // 重新检查所有报告与方案状态
       if (reports.length > 0) {
         checkReportsStatus(reports, cust)
+      }
+      if (schemes.length > 0) {
+        checkSchemesStatus(schemes, cust)
       }
     } catch (err: any) {
       message.error(`清理客户本地文件失败: ${err?.message || err}`)
@@ -1342,14 +1463,30 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       三师健管系统自动排版生成的定制化干预方案，支持即时预览、在线修改重新生成与下载发微信
                     </Text>
-                    <Button
-                      size="small"
-                      icon={<ReloadOutlined />}
-                      loading={schemesLoading}
-                      onClick={handleRefreshSchemes}
-                    >
-                      刷新方案
-                    </Button>
+                    <Space size="small">
+                      <Button
+                        size="small"
+                        icon={<FolderOpenOutlined />}
+                        onClick={handleOpenCustomerFolder}
+                      >
+                        客户档案目录
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<SettingOutlined />}
+                        onClick={() => setStorageModalVisible(true)}
+                      >
+                        存储设置
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        loading={schemesLoading}
+                        onClick={handleRefreshSchemes}
+                      >
+                        刷新方案
+                      </Button>
+                    </Space>
                   </div>
 
                   <Table
@@ -1430,6 +1567,23 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                         ),
                       },
                       {
+                        title: '本地状态',
+                        key: 'localStatus',
+                        width: 95,
+                        align: 'center',
+                        render: (_: any, record: HealthSchemeRecord) => {
+                          const st = schemeStatusMap[String(record.id)]
+                          if (st?.exists) {
+                            return (
+                              <Tag color="success" icon={<CheckCircleOutlined />}>
+                                已就绪
+                              </Tag>
+                            )
+                          }
+                          return <Tag color="default">未下载</Tag>
+                        },
+                      },
+                      {
                         title: '生成时间',
                         dataIndex: 'createTime',
                         key: 'createTime',
@@ -1439,18 +1593,20 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       {
                         title: '操作',
                         key: 'action',
-                        width: 185,
+                        width: 235,
                         align: 'center',
                         render: (_: any, record: HealthSchemeRecord) => {
                           const isDownloading = downloadingSchemeId === record.id
                           const isRegenerating = record.async === 1
+                          const st = schemeStatusMap[String(record.id)]
+                          const isReady = st?.exists
 
                           return (
-                            <Space size="small">
+                            <Space size={2} wrap>
                               <Button
-                                type="link"
+                                type="primary"
                                 size="small"
-                                style={{ padding: 0 }}
+                                icon={<EyeOutlined />}
                                 onClick={() => {
                                   setSelectedSchemeForPreview(record)
                                   setSchemePreviewVisible(true)
@@ -1461,7 +1617,6 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                               <Button
                                 type="link"
                                 size="small"
-                                style={{ padding: 0 }}
                                 disabled={isRegenerating}
                                 onClick={() => {
                                   setSelectedSchemeForEdit(record)
@@ -1470,15 +1625,47 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                               >
                                 修改
                               </Button>
-                              <Button
-                                type="link"
-                                size="small"
-                                style={{ padding: 0 }}
-                                loading={isDownloading}
-                                onClick={() => handleDownloadSchemeRow(record)}
-                              >
-                                下载发客户
-                              </Button>
+                              <Tooltip title={isReady ? '重新下载方案并保存至本地电脑' : '下载方案并归档至本地客户专属目录'}>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<DownloadOutlined />}
+                                  loading={isDownloading}
+                                  onClick={() => handleDownloadSchemeRow(record)}
+                                >
+                                  {isReady ? '重下' : '下载发客户'}
+                                </Button>
+                              </Tooltip>
+                              <Tooltip title="在 Windows 资源管理器中高亮定位方案文件">
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<FolderOpenOutlined />}
+                                  onClick={() => handleOpenSchemeFolder(record)}
+                                >
+                                  定位
+                                </Button>
+                              </Tooltip>
+                              {isReady && (
+                                <Popconfirm
+                                  title="确定删除此份方案的本地电脑文件？"
+                                  description="删除后仅清除本机电脑文件，云端方案保持完好，随时可在线预览或重新下载。"
+                                  okText="删除"
+                                  cancelText="取消"
+                                  okButtonProps={{ danger: true }}
+                                  onConfirm={() => handleCleanSingleScheme(record)}
+                                >
+                                  <Tooltip title="清除本地文件 (释放空间并符合合规要求)">
+                                    <Button
+                                      type="text"
+                                      danger
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      loading={cleaningSchemeId === record.id}
+                                    />
+                                  </Tooltip>
+                                </Popconfirm>
+                              )}
                             </Space>
                           )
                         },
@@ -1586,6 +1773,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       <HealthSchemePreviewModal
         visible={schemePreviewVisible}
         schemeRecord={selectedSchemeForPreview}
+        customer={profileData || activeCustomer}
         onClose={() => {
           setSchemePreviewVisible(false)
           setSelectedSchemeForPreview(null)
@@ -1603,6 +1791,10 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                 : item
             )
           )
+          const cust = profileData || activeCustomer
+          if (cust) {
+            checkSchemesStatus(schemes, cust)
+          }
         }}
       />
 

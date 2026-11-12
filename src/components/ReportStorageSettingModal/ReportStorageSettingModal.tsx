@@ -118,7 +118,7 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
       const res = await reportFileService.cleanAllReportFiles()
       setConfig(res.config)
       message.success(
-        `本地体检报告文件已清理完成（已清除 ${res.cleanedItemsCount} 项文件/目录，磁盘已释放）`
+        `本地客户档案文件已清理完成（已清除 ${res.cleanedItemsCount} 项报告/方案文件与目录，磁盘空间已释放）`
       )
       onCleaned?.()
     } catch (err) {
@@ -136,12 +136,12 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
       title={
         <Space>
           <FolderOpenOutlined style={{ color: '#1677ff', fontSize: 18 }} />
-          <span style={{ fontWeight: 600 }}>体检报告本地存储设置</span>
+          <span style={{ fontWeight: 600 }}>客户健康档案本地存储与清理设置</span>
         </Space>
       }
       open={visible}
       onCancel={onClose}
-      width={620}
+      width={640}
       footer={[
         <Button key="cancel" onClick={onClose} disabled={saving}>
           取消
@@ -163,27 +163,29 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message="本地化文件管理说明"
+            message="客户档案本地化统一存储说明"
             description={
               <Paragraph style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: '#595959' }}>
-                系统已默认探测非系统盘（D盘或E盘），下载的体检报告将自动按
-                <Text code style={{ margin: '0 4px' }}>
-                  患者姓名_手机尾号_档案ID / 报告日期_机构名_报告ID
+                系统已默认探测非系统盘（D盘或E盘），下载的<b>体检报告</b>与<b>健管方案</b>将统一合并归档至客户专属目录：
+                <br />
+                <Text code style={{ margin: '2px 0', display: 'inline-block' }}>
+                  [根存储目录] / [客户姓名_手机尾号_档案ID] / [体检报告 | 健管方案] / 文件名.pdf
                 </Text>
-                三级规范目录智能归档，杜绝污染系统C盘。
+                <br />
+                全流程集中规范存放，方案文件名彻底脱敏去手机号，不污染系统 C 盘。
               </Paragraph>
             }
           />
 
           <div style={{ marginBottom: 16 }}>
             <Text strong style={{ display: 'block', marginBottom: 6 }}>
-              体检报告根保存目录：
+              客户档案本地根保存目录：
             </Text>
             <Space.Compact style={{ width: '100%' }}>
               <Input
                 value={currentPath}
                 onChange={e => setCurrentPath(e.target.value)}
-                placeholder="例如: D:\健康管理体检报告库"
+                placeholder="例如: D:\健康管理桌面端_客户档案库"
                 style={{ fontFamily: 'Consolas, monospace', fontSize: 13 }}
               />
               <Button icon={<FolderOpenOutlined />} onClick={handleSelectFolder}>
@@ -238,15 +240,15 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
             <div>
               <div style={{ fontWeight: 600, color: '#cf1322', fontSize: 13, marginBottom: 2 }}>
                 <ClearOutlined style={{ marginRight: 6 }} />
-                本地电脑报告文件清理
+                本地客户档案文件清理（体检报告 + 健管方案）
               </div>
               <div style={{ fontSize: 12, color: '#820014' }}>
-                按合规要求或需释放空间时，可一键删除本机所有已下载的体检报告原件
+                按合规要求（电脑不留存客户信息）或需释放磁盘空间时，可一键彻底擦除本机所有已下载文件
               </div>
             </div>
             <Popconfirm
-              title="确定要彻底清除本地所有体检报告文件吗？"
-              description="清除后本地电脑将不再留存任何客户体检报告文件，如需再次查看可直接在线安全预览或重新下载。"
+              title="确定要彻底清除本地所有客户档案文件吗？"
+              description="清理将删除本机存储目录下的所有体检报告与健管方案文件，云端档案完好无损，随时可在线安全查阅或重新下载。"
               okText="确认彻底清理"
               cancelText="取消"
               okButtonProps={{ danger: true, loading: cleaning }}
@@ -270,7 +272,7 @@ export const ReportStorageSettingModal: React.FC<ReportStorageSettingModalProps>
           >
             <div>
               💡 <strong>提示：</strong>
-              修改保存路径后，新下载的报告将存入新目录；先前已下载的历史报告文件仍保留在原目录中。如需清理电脑残留，可点击上方“一键清理”。
+              修改保存路径后，新下载的报告与方案将存入新目录；先前已下载的历史文件仍保留在原目录中。如需清理电脑残留，可点击上方“一键清理”。
             </div>
           </div>
         </div>

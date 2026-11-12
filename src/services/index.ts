@@ -49,7 +49,7 @@ export type {
 export { DictService } from './dictService'
 export type { DictItem } from './dictService'
 
-// 体检报告本地文件资产管理服务
+// 体检报告与健管方案本地文件资产管理服务
 export { ReportFileService } from './reportFileService'
 export type {
   ReportStorageConfig,
@@ -59,6 +59,9 @@ export type {
   DownloadReportFileParams,
   DownloadReportBatchParams,
   DownloadResult,
+  SchemeStatusParams,
+  SchemeStatusResult,
+  DownloadSchemeParams,
 } from './reportFileService'
 
 // 离线消息队列服务

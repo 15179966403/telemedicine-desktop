@@ -72,6 +72,31 @@ export interface CleanAllResult {
   config: ReportStorageConfig
 }
 
+export interface SchemeStatusParams {
+  customerName: string
+  mobile: string
+  customerId: string | number
+  schemeId: string | number
+  fileName: string
+}
+
+export interface SchemeStatusResult {
+  customerDir: string
+  schemeDir: string
+  localPath: string
+  exists: boolean
+  fileSize: number
+}
+
+export interface DownloadSchemeParams {
+  customerName: string
+  mobile: string
+  customerId: string | number
+  schemeId: string | number
+  fileUrl: string
+  fileName: string
+}
+
 export class ReportFileService {
   private static instance: ReportFileService
 
@@ -238,13 +263,67 @@ export class ReportFileService {
   }
 
   /**
-   * 11. 一键清理存储根目录下的所有本地报告缓存与文件（彻底擦除磁盘数据）
+   * 11. 一键清理存储根目录下的所有本地报告与方案缓存文件（彻底擦除磁盘数据）
    */
   async cleanAllReportFiles(): Promise<CleanAllResult> {
     try {
       return await invoke<CleanAllResult>('clean_all_report_files')
     } catch (error) {
       console.error('clean_all_report_files failed:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 12. 检查单份健管方案在本地电脑是否已归档
+   */
+  async checkSchemeStatus(params: SchemeStatusParams): Promise<SchemeStatusResult> {
+    try {
+      return await invoke<SchemeStatusResult>('check_scheme_file_status', {
+        params: {
+          ...params,
+          customerId: String(params.customerId),
+          schemeId: String(params.schemeId),
+        },
+      })
+    } catch (error) {
+      console.error('check_scheme_file_status failed:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 13. 下载健管方案 PDF 至客户专属本地“健管方案”子目录
+   */
+  async downloadSchemeFile(params: DownloadSchemeParams): Promise<DownloadResult> {
+    try {
+      return await invoke<DownloadResult>('download_scheme_file', {
+        params: {
+          ...params,
+          customerId: String(params.customerId),
+          schemeId: String(params.schemeId),
+        },
+      })
+    } catch (error) {
+      console.error('download_scheme_file failed:', error)
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  /**
+   * 14. 清除单份健管方案在本地电脑上的文件
+   */
+  async cleanSingleSchemeFile(params: SchemeStatusParams): Promise<boolean> {
+    try {
+      return await invoke<boolean>('clean_single_scheme_file', {
+        params: {
+          ...params,
+          customerId: String(params.customerId),
+          schemeId: String(params.schemeId),
+        },
+      })
+    } catch (error) {
+      console.error('clean_single_scheme_file failed:', error)
       throw error instanceof Error ? error : new Error(String(error))
     }
   }

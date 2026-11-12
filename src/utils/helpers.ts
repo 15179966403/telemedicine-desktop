@@ -190,6 +190,34 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
+ * 构建健管方案下载文件名（严格去除手机号等敏感信息，格式规范：姓名_方案类型_日期.pdf）
+ */
+export function buildHealthSchemeFileName(record: {
+  customerName?: string
+  userName?: string
+  recordsType?: number
+  createTime?: string
+}): string {
+  let custName = (record.customerName || record.userName || '客户').trim()
+  // 严格过滤任何 11 位手机号（如 13800138000、-13800138000、_13800138000、(13800138000) 等）
+  custName = custName.replace(/[(（_/\s-]*1[3-9]\d{9}[)）_/\s-]*/g, '').trim()
+  // 去除首尾的多余分隔符
+  custName = custName.replace(/^[-_]+|[-_]+$/g, '').trim() || '客户'
+  // 移除特殊非法文件名字符
+  custName = custName.replace(/[\\/:*?"<>|]/g, '_').trim() || '客户'
+
+  const schemeTitle = record.recordsType === 6 ? '安颐健管方案' : '三师健管方案'
+  const timeStr = (record.createTime || '').slice(0, 10).replace(/[-:]/g, '')
+
+  let fileName = `${custName}_${schemeTitle}_${timeStr || '方案'}.pdf`
+  // 再次双重校验彻底去除文件名中任何可能夹带的 11 位连续手机号及包裹符号
+  fileName = fileName.replace(/[(（_/\s-]*1[3-9]\d{9}[)）_/\s-]*/g, '')
+  // 去除多重下划线
+  fileName = fileName.replace(/_+/g, '_')
+  return fileName
+}
+
+/**
  * 下载文件
  */
 export function downloadFile(url: string, filename: string): void {

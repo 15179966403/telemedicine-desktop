@@ -82,7 +82,7 @@ pub fn run() {
             get_file_cache_info,
             update_file_last_accessed,
 
-            // 体检报告本地文件管理命令
+            // 体检报告与健管方案本地文件管理命令
             get_report_storage_dir,
             set_report_storage_dir,
             select_report_folder_dialog,
@@ -94,6 +94,9 @@ pub fn run() {
             clean_single_report_files,
             clean_customer_report_files,
             clean_all_report_files,
+            check_scheme_file_status,
+            download_scheme_file,
+            clean_single_scheme_file,
 
             // 数据库相关命令
             init_database,

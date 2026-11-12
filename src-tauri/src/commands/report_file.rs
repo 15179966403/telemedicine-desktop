@@ -280,6 +280,25 @@ fn build_report_dir_paths(
     (customer_dir, report_dir)
 }
 
+/// 构建健管方案存储专属子目录（归属于同一客户根目录）
+fn build_scheme_dir_paths(
+    root: &Path,
+    customer_name: &str,
+    mobile: &str,
+    customer_id: &str,
+) -> (PathBuf, PathBuf) {
+    let clean_name = sanitize_name(customer_name);
+    let mobile_tail = if mobile.len() >= 4 {
+        &mobile[mobile.len() - 4..]
+    } else {
+        mobile
+    };
+    let customer_folder_name = format!("{}_{}_{}", clean_name, mobile_tail, customer_id);
+    let customer_dir = root.join(customer_folder_name);
+    let scheme_dir = customer_dir.join("健管方案");
+    (customer_dir, scheme_dir)
+}
+
 /// 从 URL 解析文件名
 fn extract_file_name_from_url(url: &str, idx: usize) -> String {
     let path_part = url.split('?').next().unwrap_or(url);
@@ -802,4 +821,179 @@ pub async fn clean_all_report_files(app: AppHandle) -> Result<CleanAllResult, St
             is_custom,
         },
     })
+}
+
+// =================== 健管方案本地文件管理命令 ===================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SchemeStatusParams {
+    #[serde(rename = "customerName")]
+    pub customer_name: String,
+    pub mobile: String,
+    #[serde(rename = "customerId")]
+    pub customer_id: String,
+    #[serde(rename = "schemeId")]
+    pub scheme_id: String,
+    #[serde(rename = "fileName")]
+    pub file_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SchemeStatusResult {
+    #[serde(rename = "customerDir")]
+    pub customer_dir: String,
+    #[serde(rename = "schemeDir")]
+    pub scheme_dir: String,
+    #[serde(rename = "localPath")]
+    pub local_path: String,
+    pub exists: bool,
+    #[serde(rename = "fileSize")]
+    pub file_size: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownloadSchemeParams {
+    #[serde(rename = "customerName")]
+    pub customer_name: String,
+    pub mobile: String,
+    #[serde(rename = "customerId")]
+    pub customer_id: String,
+    #[serde(rename = "schemeId")]
+    pub scheme_id: String,
+    #[serde(rename = "fileUrl")]
+    pub file_url: String,
+    #[serde(rename = "fileName")]
+    pub file_name: String,
+}
+
+/// 12. 检查单份健管方案 PDF 是否已在本地下载归档
+#[tauri::command]
+pub async fn check_scheme_file_status(
+    app: AppHandle,
+    params: SchemeStatusParams,
+) -> Result<SchemeStatusResult, String> {
+    let (root_path, _) = resolve_current_root_dir(&app);
+    let (customer_dir, scheme_dir) = build_scheme_dir_paths(
+        &root_path,
+        &params.customer_name,
+        &params.mobile,
+        &params.customer_id,
+    );
+    let local_file_path = scheme_dir.join(&params.file_name);
+    let exists = local_file_path.exists() && local_file_path.is_file();
+    let file_size = if exists {
+        local_file_path.metadata().map(|m| m.len()).unwrap_or(0)
+    } else {
+        0
+    };
+
+    Ok(SchemeStatusResult {
+        customer_dir: customer_dir.to_string_lossy().to_string(),
+        scheme_dir: scheme_dir.to_string_lossy().to_string(),
+        local_path: local_file_path.to_string_lossy().to_string(),
+        exists,
+        file_size,
+    })
+}
+
+/// 13. 下载健管方案 PDF 文件至客户专属的“健管方案”本地子目录
+#[tauri::command]
+pub async fn download_scheme_file(
+    app: AppHandle,
+    params: DownloadSchemeParams,
+) -> Result<DownloadResult, String> {
+    let (root_path, _) = resolve_current_root_dir(&app);
+    let (_, scheme_dir) = build_scheme_dir_paths(
+        &root_path,
+        &params.customer_name,
+        &params.mobile,
+        &params.customer_id,
+    );
+
+    std::fs::create_dir_all(&scheme_dir)
+        .map_err(|e| format!("创建方案存储目录失败 {:?}: {}", scheme_dir, e))?;
+
+    let local_file_path = scheme_dir.join(&params.file_name);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let response = client
+        .get(&params.file_url)
+        .send()
+        .await
+        .map_err(|e| format!("下载方案文件失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Ok(DownloadResult {
+            success: false,
+            url: params.file_url,
+            local_path: local_file_path.to_string_lossy().to_string(),
+            file_name: params.file_name,
+            file_size: 0,
+            error: Some(format!("服务器返回错误 HTTP {}", response.status())),
+        });
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("读取方案文件流失败: {}", e))?;
+
+    let file_size = bytes.len() as u64;
+    tokio::fs::write(&local_file_path, bytes)
+        .await
+        .map_err(|e| format!("保存方案文件失败: {}", e))?;
+
+    Ok(DownloadResult {
+        success: true,
+        url: params.file_url,
+        local_path: local_file_path.to_string_lossy().to_string(),
+        file_name: params.file_name,
+        file_size,
+        error: None,
+    })
+}
+
+/// 14. 删除单份健管方案在本地电脑的下载文件
+#[tauri::command]
+pub async fn clean_single_scheme_file(
+    app: AppHandle,
+    params: SchemeStatusParams,
+) -> Result<bool, String> {
+    let (root, _) = resolve_current_root_dir(&app);
+    let (customer_dir, scheme_dir) = build_scheme_dir_paths(
+        &root,
+        &params.customer_name,
+        &params.mobile,
+        &params.customer_id,
+    );
+    let local_file_path = scheme_dir.join(&params.file_name);
+
+    if local_file_path.starts_with(&root) && local_file_path.exists() {
+        std::fs::remove_file(&local_file_path)
+            .map_err(|e| format!("删除本地方案文件失败: {}", e))?;
+    }
+
+    // 若方案目录已空，清理方案空目录
+    if scheme_dir.starts_with(&root) && scheme_dir.exists() {
+        if let Ok(mut entries) = std::fs::read_dir(&scheme_dir) {
+            if entries.next().is_none() {
+                let _ = std::fs::remove_dir(&scheme_dir);
+            }
+        }
+    }
+
+    // 若客户根目录下已无其他文件或子目录，清理客户空目录
+    if customer_dir.starts_with(&root) && customer_dir.exists() {
+        if let Ok(mut entries) = std::fs::read_dir(&customer_dir) {
+            if entries.next().is_none() {
+                let _ = std::fs::remove_dir(&customer_dir);
+            }
+        }
+    }
+
+    Ok(true)
 }

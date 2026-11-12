@@ -39,10 +39,10 @@ import { AppointmentModal } from '@/components/AppointmentModal'
 import { ReportStorageSettingModal } from '@/components/ReportStorageSettingModal'
 import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/HealthScheme'
 import { usePatients, useAuth } from '@/hooks'
-import { DictService, DictItem, PatientService } from '@/services'
+import { DictService, DictItem, PatientService, ReportFileService } from '@/services'
 import type { CustomerRecord, ServiceRecord, HealthSchemeRecord, HealthSchemeQueryParams } from '@/types'
 import type { ColumnsType } from 'antd/es/table'
-import { downloadFile } from '@/utils/helpers'
+import { downloadFile, buildHealthSchemeFileName } from '@/utils/helpers'
 import dayjs from 'dayjs'
 import './PatientListPage.css'
 
@@ -208,11 +208,30 @@ export const PatientListPage: React.FC = () => {
     try {
       setGlobalDownloadingSchemeId(record.id)
       const custName = record.customerName || record.userName || '客户'
-      const schemeTitle = record.recordsType === 6 ? '安颐健管方案' : '三师健管方案'
-      const timeStr = (record.createTime || '').slice(0, 10).replace(/-/g, '')
-      const fileName = `${custName}_${schemeTitle}_${timeStr || '方案'}.pdf`
+      const custMobile = record.mobile || ''
+      const custId = record.customerId || record.id || ''
+      const fileName = buildHealthSchemeFileName(record)
 
-      downloadFile(pdfUrl, fileName)
+      let downloadedLocally = false
+      try {
+        const res = await ReportFileService.getInstance().downloadSchemeFile({
+          customerName: custName,
+          mobile: custMobile,
+          customerId: custId,
+          schemeId: record.id,
+          fileUrl: pdfUrl,
+          fileName,
+        })
+        if (res.success) {
+          downloadedLocally = true
+        }
+      } catch (err) {
+        console.warn('Tauri 方案本地下载失败，降级浏览器下载:', err)
+      }
+
+      if (!downloadedLocally) {
+        downloadFile(pdfUrl, fileName)
+      }
 
       if (record.id) {
         await PatientService.getInstance().recordHealthSchemeDownload(record.id)
@@ -225,11 +244,34 @@ export const PatientListPage: React.FC = () => {
         )
       }
 
-      message.success('方案已下载并记录下载次数，可直接拖入企业微信发送给客户')
+      message.success('方案已保存至客户专属文件夹，并记录系统下载计数')
     } catch (err) {
       message.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setGlobalDownloadingSchemeId(null)
+    }
+  }
+
+  // 全局方案定位本地目录
+  const handleOpenGlobalSchemeFolder = async (record: HealthSchemeRecord) => {
+    const custName = record.customerName || record.userName || '客户'
+    const custMobile = record.mobile || ''
+    const custId = record.customerId || record.id || ''
+    const fileName = buildHealthSchemeFileName(record)
+    try {
+      const st = await ReportFileService.getInstance().checkSchemeStatus({
+        customerName: custName,
+        mobile: custMobile,
+        customerId: custId,
+        schemeId: record.id,
+        fileName,
+      })
+      await ReportFileService.getInstance().openLocalFolder(
+        st.schemeDir,
+        st.exists ? st.localPath : undefined
+      )
+    } catch (err) {
+      message.error('定位方案文件夹失败')
     }
   }
 
@@ -1342,6 +1384,14 @@ export const PatientListPage: React.FC = () => {
                                 >
                                   下载发客户
                                 </Button>
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0 }}
+                                  onClick={() => handleOpenGlobalSchemeFolder(record)}
+                                >
+                                  定位
+                                </Button>
                               </Space>
                             )
                           },
@@ -1360,6 +1410,15 @@ export const PatientListPage: React.FC = () => {
       <HealthSchemePreviewModal
         visible={globalPreviewVisible}
         schemeRecord={globalSchemePreview}
+        customer={
+          globalSchemePreview
+            ? {
+                customerName: globalSchemePreview.customerName || globalSchemePreview.userName,
+                mobile: globalSchemePreview.mobile,
+                id: globalSchemePreview.customerId || globalSchemePreview.id,
+              }
+            : null
+        }
         onClose={() => {
           setGlobalPreviewVisible(false)
           setGlobalSchemePreview(null)
