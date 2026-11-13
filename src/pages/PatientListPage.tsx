@@ -1439,16 +1439,34 @@ export const PatientListPage: React.FC = () => {
         }}
       />
 
-      {/* 健管方案快速修改与重生成弹窗 */}
+      {/* 健管方案快速修改与重生成弹窗（左右对比模式） */}
       <EditHealthSchemeModal
         visible={globalEditVisible}
         schemeRecord={globalSchemeEdit}
+        customer={
+          globalSchemeEdit
+            ? {
+                customerName: globalSchemeEdit.customerName || globalSchemeEdit.userName,
+                mobile: globalSchemeEdit.mobile,
+                id: globalSchemeEdit.customerId || globalSchemeEdit.id,
+              }
+            : null
+        }
         onClose={() => {
           setGlobalEditVisible(false)
           setGlobalSchemeEdit(null)
         }}
         onSuccess={() => {
           fetchGlobalSchemes()
+        }}
+        onDownloadSuccess={schemeId => {
+          setGlobalSchemes(prev =>
+            prev.map(item =>
+              item.id === schemeId
+                ? { ...item, doctorDownload: (item.doctorDownload || 0) + 1 }
+                : item
+            )
+          )
         }}
       />
 

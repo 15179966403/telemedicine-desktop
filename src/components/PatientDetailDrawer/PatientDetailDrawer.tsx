@@ -1798,16 +1798,30 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
         }}
       />
 
-      {/* 健管方案快速修改与重新生成弹窗 */}
+      {/* 健管方案快速修改与重新生成弹窗（左右对比模式） */}
       <EditHealthSchemeModal
         visible={schemeEditVisible}
         schemeRecord={selectedSchemeForEdit}
+        customer={profileData || activeCustomer}
         onClose={() => {
           setSchemeEditVisible(false)
           setSelectedSchemeForEdit(null)
         }}
         onSuccess={() => {
           handleRefreshSchemes()
+        }}
+        onDownloadSuccess={schemeId => {
+          setSchemes(prev =>
+            prev.map(item =>
+              item.id === schemeId
+                ? { ...item, doctorDownload: (item.doctorDownload || 0) + 1 }
+                : item
+            )
+          )
+          const cust = profileData || activeCustomer
+          if (cust) {
+            checkSchemesStatus(schemes, cust)
+          }
         }}
       />
     </Drawer>
