@@ -10,11 +10,21 @@ export * from './message'
 // 窗口管理相关类型
 export * from './window'
 
-// 文件管理相关类型
-export * from './file'
+// 文件管理相关类型 (排除重复的 FileInfo)
+export type {
+  FileUploadProgress,
+  FileCacheInfo,
+  FileValidationRules,
+  FileOperationResult,
+  FilePreviewInfo,
+} from './file'
 
 // 安全相关类型
 export * from './security'
 
 // 通用类型
 export * from './common'
+
+// AI 智能体类型
+export * from './ai'
+

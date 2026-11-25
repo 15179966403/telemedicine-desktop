@@ -1,12 +1,15 @@
 // 服务层导出
 export { AuthService } from './authService'
-export { PatientService } from './patientService'
+export { PatientService, patientService } from './patientService'
 export { MessageService } from './messageService'
 export { FileService } from './fileService'
 export { WindowService } from './windowService'
 
 // 问诊服务
-export { ConsultationService, consultationService } from './consultationService'
+export { AIService, aiService } from './ai/aiService'
+export { ToolSandbox, toolSandbox } from './ai/toolSandbox'
+export { IdempotencyService, idempotencyService } from './ai/idempotencyService'
+export { ContextCompressor, contextCompressor } from './ai/contextCompressor'
 
 // WebSocket 实时通信服务
 export { WebSocketService, webSocketService } from './webSocketService'

@@ -1,15 +1,16 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Layout, Button, Typography, Space, Card, Row, Col } from 'antd'
 import {
   LogoutOutlined,
   UserOutlined,
   TeamOutlined,
-  MessageOutlined,
+  RobotOutlined,
   SettingOutlined,
   BarChartOutlined,
 } from '@ant-design/icons'
 import { useAuth } from '@/hooks'
 import { useNavigate } from 'react-router-dom'
+import { SystemSettingsModal } from '@/components/AIAgent/SystemSettingsModal'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -17,6 +18,7 @@ const { Title, Text } = Typography
 export const WorkspacePage: React.FC = () => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -26,8 +28,8 @@ export const WorkspacePage: React.FC = () => {
     navigate('/patients')
   }
 
-  const handleNavigateToConsultations = () => {
-    navigate('/consultations')
+  const handleNavigateToAIAgent = () => {
+    navigate('/ai-workspace')
   }
 
   return (
@@ -89,10 +91,11 @@ export const WorkspacePage: React.FC = () => {
             </Card>
           </Col>
 
+          {/* AI 功能集合 (Person Agent) 替换原有的在线问诊 */}
           <Col xs={24} sm={12} lg={8}>
             <Card
               hoverable
-              style={{ textAlign: 'center', height: 200 }}
+              style={{ textAlign: 'center', height: 200, borderColor: '#69b1ff' }}
               styles={{
                 body: {
                   display: 'flex',
@@ -101,15 +104,15 @@ export const WorkspacePage: React.FC = () => {
                   height: '100%',
                 },
               }}
-              onClick={handleNavigateToConsultations}
+              onClick={handleNavigateToAIAgent}
             >
-              <MessageOutlined
-                style={{ fontSize: 48, color: '#52c41a', marginBottom: 16 }}
+              <RobotOutlined
+                style={{ fontSize: 48, color: '#1890ff', marginBottom: 16 }}
               />
-              <Title level={4} style={{ margin: 0 }}>
-                在线问诊
+              <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                AI 功能集合 (Person Agent)
               </Title>
-              <Text type="secondary">处理患者问诊请求</Text>
+              <Text type="secondary">报告深度解读、临床决策辅助与方案生成</Text>
             </Card>
           </Col>
 
@@ -148,6 +151,7 @@ export const WorkspacePage: React.FC = () => {
                   height: '100%',
                 },
               }}
+              onClick={() => setSettingsOpen(true)}
             >
               <SettingOutlined
                 style={{ fontSize: 48, color: '#722ed1', marginBottom: 16 }}
@@ -155,11 +159,16 @@ export const WorkspacePage: React.FC = () => {
               <Title level={4} style={{ margin: 0 }}>
                 系统设置
               </Title>
-              <Text type="secondary">配置系统参数</Text>
+              <Text type="secondary">配置 DeepSeek API Key 与系统参数</Text>
             </Card>
           </Col>
         </Row>
       </Content>
+
+      <SystemSettingsModal
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </Layout>
   )
 }

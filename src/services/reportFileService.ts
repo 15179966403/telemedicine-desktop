@@ -345,3 +345,6 @@ export class ReportFileService {
     }
   }
 }
+
+export const reportFileService = ReportFileService.getInstance()
+

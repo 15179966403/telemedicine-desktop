@@ -279,6 +279,11 @@ export class PatientService {
    * 参考 VIPCustomersPreView.vue 中的 reqIndicatorsReportAll
    */
   async fetchCustomerReports(customerId: string | number): Promise<MedicalReport[]> {
+    if (!customerId || String(customerId).trim() === '' || customerId === 'undefined' || customerId === 'null') {
+      console.warn('fetchCustomerReports: 未传入有效的 customerId，拒绝执行无参全表检索')
+      return []
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/admin/peCustomer/reportPageList`, {
         method: 'POST',
@@ -539,19 +544,23 @@ export class PatientService {
    */
   async getPatientList(query: PatientQuery = { page: 1, pageSize: 20 }): Promise<PatientList> {
     try {
+      const kw = query.keyword ? query.keyword.trim() : ''
+      const isDigitsOnly = kw && /^\d+$/.test(kw)
+
       const res = await this.fetchCustomerList({
         pageNum: query.page,
         pageSize: query.pageSize,
-        customerName: query.keyword,
+        customerName: query.customerName || (!isDigitsOnly && kw ? kw : undefined),
+        mobile: query.mobile || (isDigitsOnly && kw ? kw : undefined),
       })
 
       const patients: Patient[] = res.rows.map(item => ({
         id: item.id,
         customerId: item.customerId,
-        name: item.customerName,
+        name: item.customerName || (item as any).userName || (item as any).name || '客户',
         age: Number(item.age) || 0,
         gender: item.gender === 1 || item.gender === '1' ? 'male' : 'female',
-        phone: item.mobile,
+        phone: item.mobile || (item as any).phone || '',
         idCard: item.idCardNo,
         tags: [
           ...(item.abTag ? item.abTag.split(',') : []),
@@ -940,3 +949,6 @@ export class PatientService {
     }
   }
 }
+
+export const patientService = PatientService.getInstance()
+

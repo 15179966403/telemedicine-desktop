@@ -2,19 +2,19 @@
 
 pub mod user_dao;
 pub mod patient_dao;
-pub mod consultation_dao;
 pub mod message_dao;
 pub mod medical_record_dao;
 pub mod file_cache_dao;
 pub mod audit_log_dao;
+pub mod ai_dao;
 
 pub use user_dao::UserDao;
 pub use patient_dao::PatientDao;
-pub use consultation_dao::ConsultationDao;
 pub use message_dao::MessageDao;
 pub use medical_record_dao::MedicalRecordDao;
 pub use file_cache_dao::FileCacheDao;
 pub use audit_log_dao::AuditLogDao;
+pub use ai_dao::AiDao;
 
 use rusqlite::Result;
 use std::fmt::Debug;

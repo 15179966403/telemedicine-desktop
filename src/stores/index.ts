@@ -6,8 +6,9 @@ export { useWindowStore } from './windowStore'
 export { useUIStore } from './uiStore'
 export { useWebSocketStore } from './webSocketStore'
 
-// 问诊状态管理
-export { useConsultationStore } from './consultationStore'
-
 // 离线功能状态管理
 export { useOfflineStore } from './offlineStore'
+
+// AI Agent 状态管理
+export { useAIAgentStore } from './aiAgentStore'
+

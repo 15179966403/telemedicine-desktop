@@ -26,6 +26,14 @@ impl MigrationManager {
             down_sql: "DROP TABLE IF EXISTS file_cache; DROP TABLE IF EXISTS medical_records; DROP TABLE IF EXISTS messages; DROP TABLE IF EXISTS consultations; DROP TABLE IF EXISTS patients; DROP TABLE IF EXISTS users; DROP TABLE IF EXISTS schema_migrations;".to_string(),
         });
 
+        // AI Person Agent 迁移
+        migrations.insert(2, Migration {
+            version: 2,
+            description: "AI Person Agent schema".to_string(),
+            up_sql: include_str!("../../migrations/002_ai_agent_schema.sql").to_string(),
+            down_sql: "DROP TABLE IF EXISTS app_settings; DROP TABLE IF EXISTS ai_tool_audit_records; DROP TABLE IF EXISTS ai_idempotency_records; DROP TABLE IF EXISTS ai_messages; DROP TABLE IF EXISTS ai_sessions;".to_string(),
+        });
+
         Self { migrations }
     }
 

@@ -14,10 +14,7 @@ import './App.css'
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const WorkspacePage = lazy(() => import('@/pages/WorkspacePage'))
 const PatientListPage = lazy(() => import('@/pages/PatientListPage'))
-const ConsultationPage = lazy(() => import('@/pages/ConsultationPage'))
-const ConsultationManagementPage = lazy(
-  () => import('@/pages/ConsultationManagementPage')
-)
+const AIAgentWorkspacePage = lazy(() => import('@/pages/AIAgentWorkspacePage'))
 
 // 加载指示器组件
 const PageLoader: React.FC = () => (
@@ -90,18 +87,10 @@ function App() {
               }
             />
             <Route
-              path="/consultation/:id"
+              path="/ai-workspace"
               element={
                 <ProtectedRoute>
-                  <ConsultationPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/consultations"
-              element={
-                <ProtectedRoute>
-                  <ConsultationManagementPage />
+                  <AIAgentWorkspacePage />
                 </ProtectedRoute>
               }
             />

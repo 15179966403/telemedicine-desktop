@@ -351,5 +351,6 @@ fn matches_action(a: &AuditAction, b: &AuditAction) -> bool {
 }
 
 #[cfg(test)]
+#[path = "security_test.rs"]
 mod tests;
 

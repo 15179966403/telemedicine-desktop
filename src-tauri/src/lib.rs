@@ -127,11 +127,30 @@ pub fn run() {
             get_anomaly_records,
             resolve_anomaly,
             cleanup_old_security_records,
+
+            // AI Person Agent 相关命令
+            ai_save_api_key,
+            ai_get_api_key_status,
+            ai_save_config,
+            ai_get_config,
+            ai_test_connection,
+            ai_chat_stream,
+            ai_abort_generation,
+            ai_get_or_create_session,
+            ai_get_active_messages,
+            ai_get_all_messages,
+            ai_save_message,
+            ai_update_rolling_summary,
+            ai_check_or_init_idempotency,
+            ai_complete_idempotency,
+            ai_fail_idempotency,
+            ai_log_tool_audit,
+            ai_get_tool_audits,
         ])
         .setup(|app| {
-            // 初始化数据库
+            // 初始化数据库并确保在窗口与命令监听前就绪
             let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::block_on(async {
                 if let Err(e) = database::init_database(&app_handle).await {
                     eprintln!("Failed to initialize database: {}", e);
                 }

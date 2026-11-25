@@ -9,6 +9,7 @@ pub mod file_cache;
 pub mod audit_log;
 pub mod window;
 pub mod common;
+pub mod ai;
 
 pub use user::*;
 pub use patient::*;
@@ -19,3 +20,4 @@ pub use file_cache::*;
 pub use audit_log::*;
 pub use window::*;
 pub use common::*;
+pub use ai::*;

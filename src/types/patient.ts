@@ -257,6 +257,8 @@ export interface Examination {
 // 患者查询参数
 export interface PatientQuery {
   keyword?: string
+  customerName?: string
+  mobile?: string
   tags?: string[]
   gender?: 'male' | 'female'
   ageRange?: {

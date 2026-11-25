@@ -52,23 +52,15 @@ impl DatabaseManager {
     }
 
     fn configure_connection(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
-        // 启用外键约束
-        conn.execute("PRAGMA foreign_keys = ON", [])?;
-
-        // 启用WAL模式以提高并发性能
-        conn.execute("PRAGMA journal_mode = WAL", [])?;
-
-        // 设置同步模式为NORMAL以平衡性能和安全性
-        conn.execute("PRAGMA synchronous = NORMAL", [])?;
-
-        // 设置缓存大小 (10MB)
-        conn.execute("PRAGMA cache_size = -10000", [])?;
-
-        // 设置临时存储为内存
-        conn.execute("PRAGMA temp_store = MEMORY", [])?;
-
-        // 设置mmap大小 (256MB)
-        conn.execute("PRAGMA mmap_size = 268435456", [])?;
+        // 使用 execute_batch 批量配置 PRAGMA，避免 journal_mode/mmap_size 返回结果行导致 ExecuteReturnedResults 错误
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA cache_size = -10000;
+             PRAGMA temp_store = MEMORY;
+             PRAGMA mmap_size = 268435456;"
+        )?;
 
         Ok(())
     }
@@ -181,6 +173,12 @@ pub async fn init_database(app: &AppHandle) -> Result<(), Box<dyn std::error::Er
     }
 
     Ok(())
+}
+
+pub fn try_get_database() -> Result<&'static DatabaseManager, String> {
+    unsafe {
+        DATABASE_MANAGER.as_ref().ok_or_else(|| "本地数据库正在初始化，请稍后再试".to_string())
+    }
 }
 
 pub fn get_database() -> &'static DatabaseManager {
