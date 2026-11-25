@@ -10,6 +10,7 @@ pub mod report_file;
 pub mod websocket;
 pub mod security;
 pub mod ai;
+pub mod memo;
 
 // 重新导出所有命令
 pub use auth::*;
@@ -22,3 +23,4 @@ pub use report_file::*;
 pub use websocket::*;
 pub use security::*;
 pub use ai::*;
+pub use memo::*;

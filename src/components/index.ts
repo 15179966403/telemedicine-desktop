@@ -51,5 +51,8 @@ export { QuestionnaireDetailModal } from './QuestionnaireDetailModal'
 // 健管方案组件
 export { EditHealthSchemeModal, HealthSchemePreviewModal } from './HealthScheme'
 
+// 客户随访便签（文本 + 历史纸质记录照片）
+export { CustomerMemoPanel } from './CustomerMemoPanel'
+
 // 导航组件
 export { BackButton } from './BackButton'

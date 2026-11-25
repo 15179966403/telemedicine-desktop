@@ -14,7 +14,6 @@ import {
   Spin,
   Row,
   Col,
-  Input,
   Table,
   Select,
   Badge,
@@ -28,7 +27,6 @@ import {
   IdcardOutlined,
   CalendarOutlined,
   TeamOutlined,
-  SaveOutlined,
   BellOutlined,
   EyeOutlined,
   FileTextOutlined,
@@ -45,6 +43,7 @@ import {
 } from '@ant-design/icons'
 import type { CustomerRecord, Patient, MedicalReport, QuestionnaireRecord, HealthSchemeRecord } from '@/types'
 import { PatientService } from '@/services/patientService'
+import { CustomerMemoPanel } from '@/components/CustomerMemoPanel'
 import { ReportFileService, ReportStatusResult, SchemeStatusResult, DictService, type DictItem } from '@/services'
 import { UploadMedicalReportModal } from '@/components/UploadMedicalReportModal'
 import { MedicalReportPreviewModal } from '@/components/MedicalReportPreviewModal'
@@ -54,8 +53,7 @@ import { EditHealthSchemeModal, HealthSchemePreviewModal } from '@/components/He
 import { resolveCustomerDisplayName } from '@/components/AppointmentModal/AppointmentModal'
 import { downloadFile, buildHealthSchemeFileName } from '@/utils/helpers'
 
-const { Title, Text, Paragraph } = Typography
-const { TextArea } = Input
+const { Title, Text } = Typography
 
 interface PatientDetailDrawerProps {
   patient?: Patient | null
@@ -84,8 +82,6 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const [uploadModalVisible, setUploadModalVisible] = useState(false)
   const [reportPreviewVisible, setReportPreviewVisible] = useState(false)
   const [selectedReportForPreview, setSelectedReportForPreview] = useState<MedicalReport | null>(null)
-  const [doctorMemo, setDoctorMemo] = useState<string>('')
-  const [memoSaving, setMemoSaving] = useState(false)
 
   // 健康生活问卷状态
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireRecord[]>([])
@@ -183,11 +179,6 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
       setLoading(true)
       const patientService = PatientService.getInstance()
 
-      // 读取本地持久化的医生备注
-      const memoKey = `doctor_memo_cust_${activeCustomer.id}`
-      const savedMemo = localStorage.getItem(memoKey) || ''
-      setDoctorMemo(savedMemo)
-
       // 先拉取客户主档案，确保获取真实的“系统档案编号”(customer.id)
       patientService
         .fetchCustomerProfile({
@@ -251,7 +242,6 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     } else {
       setProfileData(null)
       setReports([])
-      setDoctorMemo('')
       setReportPreviewVisible(false)
       setSelectedReportForPreview(null)
       setReportStatusMap({})
@@ -736,21 +726,6 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     }
     setSelectedReportForPreview(record)
     setReportPreviewVisible(true)
-  }
-
-  // 保存医生便签
-  const handleSaveMemo = () => {
-    if (!activeCustomer) return
-    setMemoSaving(true)
-    try {
-      const memoKey = `doctor_memo_cust_${activeCustomer.id}`
-      localStorage.setItem(memoKey, doctorMemo)
-      message.success('医生随访便签保存成功')
-    } catch {
-      message.error('便签保存失败')
-    } finally {
-      setMemoSaving(false)
-    }
   }
 
   if (!activeCustomer && !profileData) {
@@ -1686,29 +1661,8 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
             {
               key: 'memo',
               label: '医生随访便签 (本地记事)',
-              children: (
-                <Card size="small" title="医生工作随手记 (本地即时保存，替代纸质本)" bordered={false}>
-                  <Paragraph type="secondary" style={{ fontSize: 12 }}>
-                    随时记录与客户沟通的健康指标变化、个性化饮食方案或复查提醒。
-                  </Paragraph>
-                  <TextArea
-                    rows={6}
-                    placeholder="输入该客户的随访要点、用药禁忌或预约备忘..."
-                    value={doctorMemo}
-                    onChange={e => setDoctorMemo(e.target.value)}
-                  />
-                  <div style={{ marginTop: 12, textAlign: 'right' }}>
-                    <Button
-                      type="primary"
-                      icon={<SaveOutlined />}
-                      loading={memoSaving}
-                      onClick={handleSaveMemo}
-                    >
-                      保存便签
-                    </Button>
-                  </div>
-                </Card>
-              ),
+              // 文本与历史纸质记录照片都只保存在本机，见 CustomerMemoPanel
+              children: <CustomerMemoPanel customer={current} />,
             },
           ]}
         />

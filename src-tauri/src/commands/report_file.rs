@@ -787,15 +787,38 @@ pub async fn clean_customer_report_files(
     Ok(false)
 }
 
+/// 便签照片是医生主动记录的标记，不属于可擦除的客户档案文件：
+/// 即使医生把报告库目录设成了照片库的上级目录，清理时也必须跳过照片库
+fn is_memo_library_path(path: &Path, memo_library: Option<&Path>) -> bool {
+    match memo_library {
+        Some(library) => crate::services::memo::is_same_path(path, library),
+        None => false,
+    }
+}
+
 /// 11. 一键清理存储根目录下的所有本地报告缓存与文件（彻底擦除磁盘数据）
 #[tauri::command]
 pub async fn clean_all_report_files(app: AppHandle) -> Result<CleanAllResult, String> {
     let (root, is_custom) = resolve_current_root_dir(&app);
+    let memo_library = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .and_then(|dir| crate::services::memo::configured_root(&dir));
+    if let Some(library) = &memo_library {
+        if crate::services::memo::is_same_path(&root, library) {
+            return Err("体检报告存储目录与便签照片库是同一个目录，为避免误删便签照片，请先在存储设置中更换报告存储目录".to_string());
+        }
+    }
+
     let mut count = 0;
     if root.exists() {
         if let Ok(entries) = std::fs::read_dir(&root) {
             for entry in entries.flatten() {
                 let path = entry.path();
+                if is_memo_library_path(&path, memo_library.as_deref()) {
+                    continue;
+                }
                 if path.is_dir() {
                     if std::fs::remove_dir_all(&path).is_ok() {
                         count += 1;
@@ -1039,4 +1062,34 @@ pub async fn get_pdf_file_bytes(
     }
 
     Err(format!("无效的 PDF 文件路径或链接: {}", trimmed))
+}
+
+
+#[cfg(test)]
+mod memo_library_guard_tests {
+    use super::is_memo_library_path;
+    use std::path::{Path, PathBuf};
+    use tempfile::tempdir;
+
+    #[test]
+    fn cleanup_skips_the_memo_library_even_inside_report_root() {
+        let temp = tempdir().unwrap();
+        let report_root = temp.path().join("report_root");
+        let library = report_root.join("健康管理便签照片库");
+        std::fs::create_dir_all(&library).unwrap();
+        std::fs::create_dir_all(report_root.join("某客户_1234_9")).unwrap();
+
+        let mut with_slash = library.clone().into_os_string();
+        with_slash.push("\\");
+        assert!(is_memo_library_path(Path::new(&with_slash), Some(&library)));
+        assert!(is_memo_library_path(
+            &PathBuf::from(library.to_string_lossy().to_uppercase()),
+            Some(&library)
+        ));
+        // 报告库里的其他目录（报告）照常清理
+        assert!(!is_memo_library_path(&report_root.join("某客户_1234_9"), Some(&library)));
+        assert!(!is_memo_library_path(&library.join("C001"), Some(&library)));
+        // 从未使用过便签照片时没有需要跳过的目录
+        assert!(!is_memo_library_path(&library, None));
+    }
 }

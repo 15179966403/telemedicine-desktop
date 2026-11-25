@@ -251,3 +251,118 @@ export async function createThumbnail(
     reader.readAsDataURL(file)
   })
 }
+
+export interface ImageVariantsOptions {
+  /** 归档用图片的长边上限，超过时才压缩 */
+  maxOriginalEdge?: number
+  originalQuality?: number
+  /** 缩略图长边 */
+  thumbnailEdge?: number
+  thumbnailQuality?: number
+}
+
+export interface ImageVariants {
+  /** 归档用图片：满足条件时保留原文件，否则转成长边受限的 JPEG */
+  original: Blob
+  originalMimeType: string
+  /** 缩略图，固定为 JPEG */
+  thumbnail: Blob
+  width: number
+  height: number
+}
+
+/** 这些格式在不超过 8MB 时原样保存，手写内容需要放大看清，不做有损压缩 */
+const KEEP_ORIGINAL_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const KEEP_ORIGINAL_MAX_BYTES = 8 * 1024 * 1024
+
+function decodeImage(file: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(img)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('照片内容无法识别，文件可能已损坏'))
+    }
+    img.src = objectUrl
+  })
+}
+
+function renderToBlob(
+  img: HTMLImageElement,
+  maxEdge: number,
+  mimeType: string,
+  quality: number
+): Promise<Blob> {
+  const ratio = Math.min(1, maxEdge / img.naturalWidth, maxEdge / img.naturalHeight)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio))
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio))
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    return Promise.reject(new Error('无法获取canvas上下文'))
+  }
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => (blob ? resolve(blob) : reject(new Error('图片处理失败'))),
+      mimeType,
+      quality
+    )
+  })
+}
+
+/**
+ * 为“保存到本地”准备一张照片：只解码一次，同时得到归档用图片、缩略图和尺寸。
+ * 浏览器会按照片的方向信息自动摆正画面。
+ */
+export async function createImageVariants(
+  file: File,
+  options: ImageVariantsOptions = {}
+): Promise<ImageVariants> {
+  const {
+    maxOriginalEdge = 2560,
+    originalQuality = 0.85,
+    thumbnailEdge = 320,
+    thumbnailQuality = 0.7,
+  } = options
+
+  const lowerName = file.name.toLowerCase()
+  if (/\.(heic|heif)$/.test(lowerName) || file.type === 'image/heic' || file.type === 'image/heif') {
+    throw new Error(
+      'iPhone 默认的 HEIC 照片无法识别，请在微信里改用“图片”方式发送到电脑（会自动转成 JPG）'
+    )
+  }
+  const looksLikeImage =
+    file.type.startsWith('image/') || /\.(jpe?g|png|webp|bmp|gif)$/.test(lowerName)
+  if (!looksLikeImage) {
+    throw new Error('只能添加照片（JPG、PNG、WebP），不支持其他文件类型')
+  }
+
+  const img = await decodeImage(file)
+  const width = img.naturalWidth
+  const height = img.naturalHeight
+  if (!width || !height) {
+    throw new Error('照片内容无法识别')
+  }
+
+  const keepOriginal =
+    KEEP_ORIGINAL_MIME_TYPES.includes(file.type) && file.size <= KEEP_ORIGINAL_MAX_BYTES
+  const [original, thumbnail] = await Promise.all([
+    keepOriginal ? Promise.resolve(file as Blob) : renderToBlob(img, maxOriginalEdge, 'image/jpeg', originalQuality),
+    renderToBlob(img, thumbnailEdge, 'image/jpeg', thumbnailQuality),
+  ])
+
+  return {
+    original,
+    originalMimeType: keepOriginal ? file.type : 'image/jpeg',
+    thumbnail,
+    width,
+    height,
+  }
+}

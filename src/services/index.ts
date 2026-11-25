@@ -74,3 +74,11 @@ export type {
   MessageSendResult,
   QueueStats,
 } from './offlineMessageQueue'
+
+// 客户随访便签服务（文本与照片都只保存在本机）
+export { CustomerMemoService, customerMemoService } from './customerMemoService'
+export type {
+  AddImageMeta,
+  AddImagesFailure,
+  AddImagesResult,
+} from './customerMemoService'

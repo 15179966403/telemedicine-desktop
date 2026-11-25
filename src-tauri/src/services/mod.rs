@@ -6,6 +6,7 @@ pub mod message;
 pub mod file;
 pub mod websocket;
 pub mod security;
+pub mod memo;
 
 pub use auth::*;
 pub use patient::*;

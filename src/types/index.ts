@@ -28,3 +28,6 @@ export * from './common'
 // AI 智能体类型
 export * from './ai'
 
+// 客户随访便签（医生本地标记）类型
+export * from './memo'
+

@@ -54,6 +54,9 @@ mod tests {
             assert!(table_names.contains(&"medical_records".to_string()));
             assert!(table_names.contains(&"file_cache".to_string()));
             assert!(table_names.contains(&"audit_logs".to_string()));
+            // 客户随访便签（文本 + 照片元数据）
+            assert!(table_names.contains(&"customer_memos".to_string()));
+            assert!(table_names.contains(&"customer_memo_images".to_string()));
         }
     }
 

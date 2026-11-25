@@ -10,6 +10,7 @@ pub mod audit_log;
 pub mod window;
 pub mod common;
 pub mod ai;
+pub mod memo;
 
 pub use user::*;
 pub use patient::*;
@@ -21,3 +22,4 @@ pub use audit_log::*;
 pub use window::*;
 pub use common::*;
 pub use ai::*;
+pub use memo::*;

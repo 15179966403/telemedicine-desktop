@@ -7,6 +7,7 @@ pub mod medical_record_dao;
 pub mod file_cache_dao;
 pub mod audit_log_dao;
 pub mod ai_dao;
+pub mod memo_dao;
 
 pub use user_dao::UserDao;
 pub use patient_dao::PatientDao;
@@ -15,6 +16,7 @@ pub use medical_record_dao::MedicalRecordDao;
 pub use file_cache_dao::FileCacheDao;
 pub use audit_log_dao::AuditLogDao;
 pub use ai_dao::AiDao;
+pub use memo_dao::MemoDao;
 
 use rusqlite::Result;
 use std::fmt::Debug;

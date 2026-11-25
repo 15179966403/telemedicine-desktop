@@ -99,6 +99,14 @@ pub fn run() {
             clean_single_scheme_file,
             get_pdf_file_bytes,
 
+            // 客户随访便签（文本与照片）相关命令
+            get_customer_memo,
+            save_customer_memo_content,
+            add_memo_image,
+            read_memo_image,
+            delete_memo_image,
+            open_memo_folder,
+
             // 数据库相关命令
             init_database,
             sync_data,

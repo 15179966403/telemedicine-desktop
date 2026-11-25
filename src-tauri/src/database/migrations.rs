@@ -34,6 +34,14 @@ impl MigrationManager {
             down_sql: "DROP TABLE IF EXISTS app_settings; DROP TABLE IF EXISTS ai_tool_audit_records; DROP TABLE IF EXISTS ai_idempotency_records; DROP TABLE IF EXISTS ai_messages; DROP TABLE IF EXISTS ai_sessions;".to_string(),
         });
 
+        // 客户随访便签迁移（便签文本 + 照片元数据）
+        migrations.insert(3, Migration {
+            version: 3,
+            description: "Customer memo schema".to_string(),
+            up_sql: include_str!("../../migrations/003_customer_memo.sql").to_string(),
+            down_sql: "DROP TABLE IF EXISTS customer_memo_images; DROP TABLE IF EXISTS customer_memos;".to_string(),
+        });
+
         Self { migrations }
     }
 
